@@ -19,7 +19,7 @@ spec:
         kubernetes.io/hostname: melchior
       containers:
         - name: pandoc-builder
-          image: registry.danya02.ru/danya02/rudn-yamadharma-course-builder:latest
+          image: registry.danya02.ru/danya02/rudn-yamadharma-course/builder:latest
           imagePullPolicy: Always
           ports:
             - name: web
@@ -72,8 +72,87 @@ spec:
   entryPoints:
     - websecure
   routes:
-  - match: Host(`pandoc-api.danya02.ru`)
+  - match: Host(`pandoc.danya02.ru`) && PathPrefix(`/api`)
     kind: Rule
+    middlewares:
+      - name: remove-api-prefix
+        namespace: rudn-yamadharma
     services:
     - name: pandoc
+      port: web
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: remove-api-prefix
+  namespace: rudn-yamadharma
+spec:
+  stripPrefix:
+    prefixes:
+      - /api
+
+---
+
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: front
+  namespace: rudn-yamadharma
+  labels:
+    app: front
+
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: front
+  template:
+    metadata:
+      labels:
+        app: front
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: melchior
+      containers:
+        - name: front
+          image: registry.danya02.ru/danya02/rudn-yamadharma-course/front:latest
+          imagePullPolicy: Always
+          ports:
+            - name: web
+              containerPort: 5000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: front
+  name: front
+  namespace: rudn-yamadharma
+spec:
+  ports:
+  - name: web
+    port: 5000
+    protocol: TCP
+    targetPort: web
+  selector:
+    app: front
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: front
+  namespace: rudn-yamadharma
+spec:
+  tls:
+    domains:
+      - main: pandoc.danya02.ru
+    secretName: default-cert
+  entryPoints:
+    - websecure
+  routes:
+  - match: Host(`pandoc.danya02.ru`)
+    kind: Rule
+    services:
+    - name: front
       port: web

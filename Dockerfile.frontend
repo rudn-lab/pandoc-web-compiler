@@ -1,0 +1,20 @@
+FROM --platform=$BUILDPLATFORM rust:buster AS builder
+
+RUN cargo install trunk
+RUN rustup target add wasm32-unknown-unknown
+
+COPY . /app
+WORKDIR /app/frontend
+RUN --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/app/frontend/target \
+    echo "Current compilation cache size:" && \
+    du -csh /app/frontend/target /usr/local/cargo/registry /usr/local/cargo/git && \
+    trunk build --release
+
+
+FROM sigoden/dufs:latest
+
+ENTRYPOINT ["dufs", "--render-spa", "/app"]
+
+COPY --from=builder /app/frontend/dist/ /app

@@ -45,7 +45,7 @@ fn profile_inner(props: &ProfileNavInnerProps) -> HtmlResult {
     let token = token.clone();
 
     let resp = use_future(|| async move {
-        reqwest::get(format!("https://pandoc-api.danya02.ru/user-info/{token}"))
+        reqwest::get(format!("https://pandoc.danya02.ru/api/user-info/{token}"))
             .await?
             .json::<UserInfoResult>()
             .await
@@ -118,7 +118,7 @@ fn profile_nav_inner(props: &ProfileNavInnerProps) -> HtmlResult {
     let token = token.clone();
 
     let resp = use_future(|| async move {
-        reqwest::get(format!("https://fsm-api.danya02.ru/user-info/{token}"))
+        reqwest::get(format!("https://pandoc.danya02.ru/api/user-info/{token}"))
             .await?
             .json::<UserInfoResult>()
             .await
@@ -180,7 +180,7 @@ fn existing_register() -> Html {
         async move {
             let token = (*token_state).clone();
             Ok(
-                reqwest::get(format!("https://pandoc-api.danya02.ru/user-info/{token}"))
+                reqwest::get(format!("https://pandoc.danya02.ru/api/user-info/{token}"))
                     .await
                     .map_err(|v| v.to_string())?
                     .json::<UserInfoResult>()
@@ -239,7 +239,7 @@ fn existing_register() -> Html {
                 {"Войти с токеном"}
             </Button>
             <hr />
-            <p>{"Если у вас нет токена, "}<a href="https://t.me/danya02">{"обратитесь к администратору для регистрации."}</a>{"."}</p>
+            <p>{"Если у вас нет токена, "}<a href="https://t.me/danya02">{"обратитесь к администратору для регистрации"}</a>{"."}</p>
         </>
     )
 }
