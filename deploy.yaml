@@ -29,7 +29,9 @@ spec:
               mountPath: /compile
             - name: db
               mountPath: "/db"
-
+      env:
+        - name: DATABASE_URL
+          value: "sqlite:///db/state.db"
       volumes:
         - name: db
           persistentVolumeClaim:
