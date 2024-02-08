@@ -1,7 +1,7 @@
 all: build redeploy
 
 build:
-	docker buildx build --platform linux/amd64 . --tag registry.danya02.ru/danya02/rudn-yamadharma-course-builder --builder local --push
+	docker buildx build --platform linux/amd64 . --tag registry.danya02.ru/danya02/rudn-yamadharma-course-builder:latest --builder local --push
 
 redeploy:
 	kubectl delete -f deploy.yaml ; exit 0

@@ -1,0 +1,74 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: pandoc-builder
+  namespace: rudn-yamadharma
+  labels:
+    app: pandoc-builder
+
+spec:
+  selector:
+    matchLabels:
+      app: pandoc-builder
+  template:
+    metadata:
+      labels:
+        app: pandoc-builder
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: melchior
+      containers:
+        - name: pandoc-builder
+          image: registry.danya02.ru/danya02/rudn-yamadharma-course-builder:latest
+          imagePullPolicy: Always
+          ports:
+            - name: web
+              containerPort: 3000
+          volumeMounts:
+            - name: compile-data
+              mountPath: /compile
+            - name: db
+              mountPath: "/db"
+
+      volumes:
+        - name: db
+          persistentVolumeClaim:
+            claimName: db-pvc
+        - name: compile-data
+          persistentVolumeClaim:
+            claimName: build-data-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: pandoc-builder
+  name: pandoc
+  namespace: rudn-yamadharma
+spec:
+  ports:
+  - name: web
+    port: 3000
+    protocol: TCP
+    targetPort: web
+  selector:
+    app: pandoc-builder
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: pandoc-builder
+  namespace: rudn-yamadharma
+spec:
+  tls:
+    domains:
+      - main: pandoc.danya02.ru
+    secretName: default-cert
+  entryPoints:
+    - websecure
+  routes:
+  - match: Host(`pandoc.danya02.ru`)
+    kind: Rule
+    services:
+    - name: pandoc
+      port: web
