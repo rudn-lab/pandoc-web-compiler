@@ -29,9 +29,12 @@ spec:
               mountPath: /compile
             - name: db
               mountPath: "/db"
-      env:
-        - name: DATABASE_URL
-          value: "sqlite:///db/state.db"
+          env:
+            - name: DATABASE_URL
+              value: "sqlite:///db/state.db"
+            - name: SECRET_KEY
+              value: "Supercalifragilisticexpipwnidocious"
+
       volumes:
         - name: db
           persistentVolumeClaim:
@@ -64,12 +67,12 @@ metadata:
 spec:
   tls:
     domains:
-      - main: pandoc.danya02.ru
+      - main: pandoc-api.danya02.ru
     secretName: default-cert
   entryPoints:
     - websecure
   routes:
-  - match: Host(`pandoc.danya02.ru`)
+  - match: Host(`pandoc-api.danya02.ru`)
     kind: Rule
     services:
     - name: pandoc

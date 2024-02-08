@@ -5,7 +5,7 @@ build:
 
 redeploy:
 	kubectl delete -f deploy.yaml ; exit 0
-	sleep 5
+	sleep 2
 	kubectl apply -f deploy.yaml
 
 
