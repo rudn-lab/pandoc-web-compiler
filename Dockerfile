@@ -18,6 +18,6 @@ RUN --mount=type=cache,target=/usr/local/cargo/git,id=${TARGETARCH} \
 
 
 FROM pandoc/extra:edge-ubuntu
-
+RUN apt update && apt install -y sqlite3 && rm -rf /var/lib/apt
 COPY --from=builder /exec /exec
 ENTRYPOINT ["/exec"]

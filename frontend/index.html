@@ -19,5 +19,19 @@
 				animation: attention normal 1s;
 			}
 		</style>
+
+        <script>
+            function prepare_input_element(el, on_change) {
+                el.innerHTML = `
+                    <input type="file" webkitdirectory multiple>
+                `;
+
+                el.addEventListener("change", (ev) => {
+                    console.log("event:", ev);
+                    on_change(ev);
+                });
+            }
+
+        </script>
 	</head>
 </html>

@@ -1,0 +1,274 @@
+use api::{PricingInfo, UserInfoResult};
+use gloo::storage::Storage;
+use gloo::utils::window;
+use shadow_clone::shadow_clone;
+use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
+use web_sys::File;
+use web_sys::FileList;
+use web_sys::HtmlElement;
+use web_sys::HtmlInputElement;
+use yew::prelude::*;
+use yew::suspense::use_future;
+use yew_autoprops::autoprops;
+use yew_bootstrap::component::Spinner;
+use yew_bootstrap::icons::BI;
+use yew_hooks::{use_drop_with_options, use_list, UseDropOptions};
+use yew_router::hooks::use_navigator;
+
+use crate::Route;
+
+#[function_component(Upload)]
+pub fn upload() -> Html {
+    let fallback = html! {
+        <h1>{"Загружаем текущие расценки..."}<Spinner/></h1>
+    };
+    html!(
+        <Suspense {fallback}>
+            <UploadInner />
+        </Suspense>
+    )
+}
+#[function_component(UploadInner)]
+fn upload_inner() -> HtmlResult {
+    let navigator = use_navigator().unwrap();
+    let dropped_files = use_list(vec![]);
+
+    let resp = use_future(|| async move {
+        let profile_key = gloo::storage::LocalStorage::get("token");
+        let profile_key: Option<String> = match profile_key {
+            Ok(key) => key,
+            Err(_) => None,
+        };
+        let token = if let Some(key) = profile_key {
+            key
+        } else {
+            navigator.push(&Route::Profile);
+            String::new()
+        };
+
+        let pricing = reqwest::get("https://pandoc.danya02.ru/api/pricing")
+            .await?
+            .error_for_status()?
+            .json::<PricingInfo>()
+            .await?;
+
+        let my_info = reqwest::get(format!("https://pandoc.danya02.ru/api/user-info/{token}"))
+            .await?
+            .error_for_status()?
+            .json::<UserInfoResult>()
+            .await?;
+
+        Ok::<_, anyhow::Error>((pricing, my_info))
+    })?;
+
+    // let push = {
+    //     shadow_clone!(dropped_files);
+    //     Callback::from(move |what: File| {
+    //         // Ensure that there are no files with the same name already here
+    //         dropped_files.retain(|v: &(File, String)| v.1 != what.name());
+
+    //         let name = what.name();
+    //         web_sys::console::log_1(&what);
+    //         dropped_files.push((what, name));
+    //     })
+    // };
+
+    let push_with_path = {
+        shadow_clone!(dropped_files);
+        Callback::from(move |items| {
+            for (what, path) in items {
+                // Ensure that there are no files with the same name already here
+                dropped_files.retain(|v: &(File, String)| v.1 != path);
+
+                dropped_files.push((what, path));
+            }
+        })
+    };
+
+    let result_html = match *resp {
+        Ok((ref pricing, ref me)) => {
+            let me = if let UserInfoResult::Ok(what) = me {
+                what
+            } else {
+                window().location().reload().unwrap();
+                loop {}
+            };
+            let make_delete_cb = {
+                |name: String| {
+                    let f = dropped_files.clone();
+                    Callback::from(move |ev: MouseEvent| {
+                        ev.prevent_default();
+                        shadow_clone!(name);
+                        f.retain(|v| &v.1 != &name);
+                    })
+                }
+            };
+            let dropped_items = dropped_files
+                .current()
+                .iter()
+                .enumerate()
+                .map(|(idx, f)| {
+                    let delete = make_delete_cb(f.1.clone());
+                    let list = dropped_files.clone();
+                    let oninput = Callback::from(move |ev: InputEvent| {
+                        let target: HtmlInputElement = ev.target().unwrap().dyn_into().unwrap();
+                        let new_name = target.value();
+
+                        // This trickery takes the file out of the managed list, changes it, then puts it back in its original position.
+                        let last_idx = list.current().len() - 1;
+                        list.swap(idx, last_idx);
+                        let mut file = list.pop().unwrap();
+                        file.1 = new_name;
+                        list.push(file);
+                        list.swap(idx, last_idx);
+                    });
+                    html!(
+                    <div class="input-group mb-1" style="width: 50%;">
+                        <input type="text" class="form-control" value={f.1.clone()} {oninput}/>
+                        <button onclick={delete} class="btn btn-outline-danger">{BI::X}</button>
+                    </div>
+                    )
+                })
+                .collect::<Html>();
+            html!(
+                <>
+                <p>{"Текущий баланс: "}<code>{me.balance}{"𐆘"}</code></p>
+
+                <p>{"Текушие расценки:"}</p>
+                <ul>
+                    <li><code>{pricing.wall_time_factor}{"𐆘"}</code>{" за секунду реального времени выполнения"}</li>
+                    <li><code>{pricing.user_time_factor}{"𐆘"}</code>{" за секунду процессора для основного кода"}</li>
+                    <li><code>{pricing.sys_time_factor}{"𐆘"}</code>{" за секунду процессора для кода ядра"}</li>
+                    <li><code>{pricing.upload_mb_factor}{"𐆘"}</code>{" за 1МБ загруженных файлов"}</li>
+                </ul>
+
+                <p>{"Загруженные файлы:"}</p>
+                {dropped_items}
+
+                <UploadBox on_upload={push_with_path}/>
+                </>
+            )
+        }
+        Err(ref failure) => {
+            html!(<div class="alert alert-danger">{"Ошибка при загрузке информации. Перезагрузите страницу. Причина: "}{failure}</div>)
+        }
+    };
+
+    Ok(result_html)
+}
+
+#[autoprops]
+#[function_component(DropArea)]
+#[allow(unreachable_code, unused_variables)]
+fn drop(on_drop: Callback<web_sys::File>) -> Html {
+    todo!("This component doesn't handle directories properly, fix this before using!");
+    let node = use_node_ref();
+    let state = use_drop_with_options(
+        node.clone(),
+        UseDropOptions {
+            onfiles: Some(Box::new(move |files, _data_transfer| {
+                log::info!("Dropped files: {files:?}");
+                for file in files {
+                    let file: web_sys::File = file;
+
+                    on_drop.emit(file);
+                }
+            })),
+            ..Default::default()
+        },
+    );
+    html! {
+        <div class="card">
+            <div ref={node} class="card-body" style={
+                if *state.over {
+                    "background-color: var(--bs-success-bg-subtle);"
+                } else {
+                    "background-color: var(--bs-success-border-subtle);"
+                }
+            }>
+                <p class="text-center">
+                    { "Перенесите файлы для загрузки сюда" }
+                </p>
+                <p class="text-center text-secondary fs-1 my-4">
+                    { yew_bootstrap::icons::BI::PLUS_SQUARE_DOTTED }
+                </p>
+            </div>
+        </div>
+    }
+}
+
+#[wasm_bindgen]
+extern "C" {
+    fn prepare_input_element(el: &HtmlElement, on_change: &Closure<dyn FnMut(Event)>);
+}
+
+#[autoprops]
+#[function_component(UploadBox)]
+fn uploadbox(on_upload: Callback<Vec<(web_sys::File, String)>>) -> Html {
+    let node = use_node_ref();
+
+    use_effect_with((node.clone(), on_upload.clone()), {
+        shadow_clone!(node);
+
+        move |(_node, on_upload)| {
+            let mut files_listener = None;
+            shadow_clone!(on_upload);
+
+            if let Some(element) = node.cast::<HtmlElement>() {
+                let onfiles = Callback::from(move |ev: Event| {
+                    log::debug!("Called Callback on files!");
+                    let source: HtmlInputElement = ev.target().unwrap().dyn_into().unwrap();
+                    log::debug!("Received element");
+                    if let Some(files) = source.files() {
+                        log::debug!("The source has files");
+                        let files: FileList = files;
+                        let count = files.length();
+                        let mut items = Vec::with_capacity(count as usize);
+                        for i in 0..count {
+                            items.push(files.get(i).expect("File at this index should exist because it's inside the bounds of the list."));
+                        }
+                        log::debug!("Collected items");
+                        let propname = JsValue::from_str("webkitRelativePath");
+                        let target_collection: Vec<_> = items
+                            .into_iter()
+                            .map(|item| {
+                                let path = js_sys::Reflect::get(&item, &propname)
+                                    .unwrap_or_else(|_| JsValue::from_str(""))
+                                    .as_string()
+                                    .unwrap_or_else(String::new);
+                                (item, path)
+                            })
+                            .collect();
+                        if target_collection.is_empty() {
+                            let _ = web_sys::window().unwrap().alert_with_message(
+                                "В этой папке нет файлов, поэтому ничего не было добавлено.",
+                            );
+                        };
+
+                        on_upload.emit(target_collection)
+                    }
+                });
+
+                web_sys::console::log_1(&element);
+
+                let listener = Closure::new(move |ev| {
+                    log::debug!("Called Rust closure on files!");
+                    onfiles.emit(ev);
+                });
+                prepare_input_element(&element, &listener);
+
+                files_listener = Some(listener);
+                log::info!("Created listener on object");
+            }
+
+            move || drop(files_listener)
+        }
+    });
+
+    html!(
+        <>
+            <div ref={node}></div>
+        </>
+    )
+}

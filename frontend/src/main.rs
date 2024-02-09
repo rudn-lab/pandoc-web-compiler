@@ -1,4 +1,5 @@
 mod profile;
+mod upload;
 
 use gloo::storage::Storage;
 use yew::prelude::*;
@@ -9,6 +10,7 @@ use yew_router::prelude::*;
 
 use crate::profile::Profile;
 use crate::profile::ProfileNav;
+use crate::upload::Upload;
 
 #[derive(Clone, Routable, PartialEq)]
 enum Route {
@@ -16,6 +18,9 @@ enum Route {
     Home,
     #[at("/profile")]
     Profile,
+
+    #[at("/upload")]
+    Upload,
 
     #[not_found]
     #[at("/404")]
@@ -48,6 +53,7 @@ fn app() -> Html {
         match route {
             Route::Home => html!(<Home/>),
             Route::Profile => html!(<Profile />),
+            Route::Upload => html!(<Upload />),
             Route::NotFound => html!("404"),
         }
     }
@@ -58,6 +64,8 @@ fn app() -> Html {
             <nav class="navbar bg-body-tertiary">
                 <div class="container-fluid">
                     <Link<Route> classes="navbar-brand" to={Route::Home}>{"Yamadharma Pandoc"}</Link<Route>>
+
+                    <Link<Route> classes="navbar-link" to={Route::Upload}>{"Загрузить на обработку"}</Link<Route>>
 
                     <ProfileNav />
                 </div>

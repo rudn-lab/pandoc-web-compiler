@@ -7,9 +7,9 @@ COPY . /app
 WORKDIR /app/frontend
 RUN --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/app/frontend/target \
+    --mount=type=cache,target=/app/target \
     echo "Current compilation cache size:" && \
-    du -csh /app/frontend/target /usr/local/cargo/registry /usr/local/cargo/git && \
+    du -csh /app/target /usr/local/cargo/registry /usr/local/cargo/git && \
     trunk build --release
 
 

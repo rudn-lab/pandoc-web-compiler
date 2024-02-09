@@ -21,7 +21,11 @@ async fn main() {
 
     let url = std::env::var("DATABASE_URL").expect("DATABASE_URL should point at a sqlite db");
     if let Some(prefix) = url.strip_prefix("sqlite://") {
-        std::fs::File::create(prefix).expect("Could not create db file");
+        std::fs::File::options()
+            .create(true)
+            .write(true)
+            .open(prefix)
+            .expect("Could not create db file");
     }
 
     let db = sqlx::SqlitePool::connect(&url)

@@ -56,7 +56,7 @@ fn profile_inner(props: &ProfileNavInnerProps) -> HtmlResult {
             UserInfoResult::Ok(UserInfo { name, balance }) => html! {
                 <>
                     <h1>{name}</h1>
-                    <h2>{"Ваш текущий баланс: "}<code>{balance}</code></h2>
+                    <h2>{"Ваш текущий баланс: "}<code>{balance}{"𐆘"}</code></h2>
 
                 </>
             },
