@@ -1,3 +1,4 @@
+mod order;
 mod profile;
 mod upload;
 
@@ -8,6 +9,7 @@ use yew_bootstrap::icons::*;
 use yew_router::prelude::Link;
 use yew_router::prelude::*;
 
+use crate::order::Order;
 use crate::profile::Profile;
 use crate::profile::ProfileNav;
 use crate::upload::Upload;
@@ -21,6 +23,9 @@ enum Route {
 
     #[at("/upload")]
     Upload,
+
+    #[at("/order/:order_id")]
+    Order { order_id: i64 },
 
     #[not_found]
     #[at("/404")]
@@ -54,6 +59,7 @@ fn app() -> Html {
             Route::Home => html!(<Home/>),
             Route::Profile => html!(<Profile />),
             Route::Upload => html!(<Upload />),
+            Route::Order { order_id: id } => html!(<Order {id} />),
             Route::NotFound => html!("404"),
         }
     }

@@ -65,10 +65,7 @@ metadata:
   name: pandoc-builder
   namespace: rudn-yamadharma
 spec:
-  tls:
-    domains:
-      - main: pandoc-api.danya02.ru
-    secretName: default-cert
+  tls: {}
   entryPoints:
     - websecure
   routes:
@@ -144,10 +141,7 @@ metadata:
   name: front
   namespace: rudn-yamadharma
 spec:
-  tls:
-    domains:
-      - main: pandoc.danya02.ru
-    secretName: default-cert
+  tls: {}
   entryPoints:
     - websecure
   routes:

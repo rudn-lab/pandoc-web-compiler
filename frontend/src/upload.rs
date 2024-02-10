@@ -72,7 +72,7 @@ fn upload_inner() -> HtmlResult {
     };
 
     let do_upload = {
-        shadow_clone!(dropped_files);
+        shadow_clone!(dropped_files, navigator);
         use_async(async move {
             let profile_key = gloo::storage::LocalStorage::get("token");
             let profile_key: Option<String> = match profile_key {
@@ -108,7 +108,7 @@ fn upload_inner() -> HtmlResult {
             }
 
             let resp = client
-                .post(format!("https://pandoc.danya02.ru/api/orders/new/{token}"))
+                .post(format!("https://pandoc.danya02.ru/api/orders/{token}/new"))
                 .multipart(form)
                 .send()
                 .await
@@ -255,11 +255,24 @@ fn upload_inner() -> HtmlResult {
                             do_upload.run();
                         })
                     };
+                    if let Some(ref resp) = do_upload.data {
+                        if let Ok(id) = resp.parse::<i64>() {
+                            navigator.push(&Route::Order { order_id: id });
+                        } else {
+                            log::error!("Server replied with non-integer: {resp:?}");
+                        }
+                    }
                     html!(
                         <div class="d-grid gap-2">
                             <button class="btn btn-primary" onclick={perform_upload} disabled={do_upload.loading}>
+                                if do_upload.loading {
+                                    <Spinner small={true} />
+                                }
                                 {"Отправить заказ"}
                             </button>
+                            if let Some(error) = do_upload.error {
+                                <p class="text-danger">{error}</p>
+                            } else {}
                         </div>
                     )
                 } else {

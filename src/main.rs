@@ -1,4 +1,5 @@
 mod admin;
+mod manager;
 mod pricing;
 mod profile;
 mod result;
@@ -10,11 +11,14 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use manager::{run_manager, ManagerRequest, OrderStatusInfo};
 use pricing::get_current_pricing;
+use tokio::sync::mpsc;
 
 #[derive(Clone)]
 struct AppState {
     db: sqlx::SqlitePool,
+    manager_connection: mpsc::Sender<ManagerRequest>,
 }
 
 #[tokio::main]
@@ -38,19 +42,50 @@ async fn main() {
         .await
         .expect("Failed to apply migrations");
 
+    // Mark all orders that were running before with an abnormal termination.
+    let abnormal = serde_json::to_string(&OrderStatusInfo::AbnormalTermination).unwrap();
+    sqlx::query!(
+        "UPDATE orders SET status_json=?, is_running=0 WHERE is_running=1",
+        abnormal
+    )
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let (manager_connection, manager_rx) = mpsc::channel(100);
+    let cancel = tokio_util::sync::CancellationToken::new();
+
+    tokio::task::spawn(run_manager(manager_rx, db.clone(), cancel.clone()));
+
     // build our application with a single route
     let app = Router::new()
         .route("/", get(|| async { "Hello, World!" }))
         .route("/pricing", get(get_quote))
         .route("/user-info/:token", get(profile::get_user))
-        .route("/orders/new/:token", post(upload::upload_order))
+        .route("/orders/:token/new", post(upload::upload_order))
+        .route("/orders/:token/:id", get(upload::get_order_status))
+        .route("/orders/:token/:id/ws", get(upload::get_live_order_status))
         .route("/admin/make-user", post(admin::make_user))
-        .layer(DefaultBodyLimit::max(25 * 1024 * 1024)) // 25MB
-        .with_state(AppState { db });
+        .layer(DefaultBodyLimit::max(100 * 1024 * 1024)) // 100MB
+        .with_state(AppState {
+            db,
+            manager_connection,
+        });
+
+    tokio::task::spawn({
+        let cancel = cancel.clone();
+        async move {
+            let _ = tokio::signal::ctrl_c().await;
+            cancel.cancel();
+        }
+    });
 
     // run our app with hyper, listening globally on port 3000
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(listener, app)
+        .with_graceful_shutdown(cancel.cancelled_owned())
+        .await
+        .unwrap();
 }
 
 async fn get_quote() -> Json<PricingInfo> {

@@ -71,7 +71,9 @@ fn profile_inner(props: &ProfileNavInnerProps) -> HtmlResult {
                 html!({ "Пользователь не существует" })
             }
         },
-        Err(ref failure) => html!(<>{"Ошибка при загрузке профиля: "}{failure.to_string()}</>),
+        Err(ref failure) => {
+            html!(<div class="alert alert-danger">{"Ошибка при загрузке профиля: "}{failure.to_string()}</div>)
+        }
     };
 
     Ok(result_html)

@@ -7,7 +7,7 @@ use axum::{
 use crate::{result::AppError, AppState};
 
 pub async fn get_user(
-    State(AppState { db }): State<AppState>,
+    State(AppState { db, .. }): State<AppState>,
     Path(token): Path<String>,
 ) -> Result<Json<UserInfoResult>, AppError> {
     let data = match sqlx::query!("SELECT * FROM accounts WHERE token=?", token)

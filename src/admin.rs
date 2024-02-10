@@ -7,7 +7,7 @@ use axum::{
 use crate::{result::AppError, AppState};
 
 pub async fn make_user(
-    State(AppState { db }): State<AppState>,
+    State(AppState { db, .. }): State<AppState>,
     headers: HeaderMap,
     Json(name): Json<String>,
 ) -> Result<Json<String>, AppError> {
