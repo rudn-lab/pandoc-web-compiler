@@ -1,6 +1,9 @@
 use api::{PricingInfo, UserInfoResult};
 use gloo::storage::Storage;
 use gloo::utils::window;
+use js_sys::ArrayBuffer;
+use js_sys::Promise;
+use js_sys::Uint8Array;
 use shadow_clone::shadow_clone;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -15,6 +18,7 @@ use yew_bootstrap::component::Column;
 use yew_bootstrap::component::Row;
 use yew_bootstrap::component::Spinner;
 use yew_bootstrap::icons::BI;
+use yew_hooks::use_async;
 use yew_hooks::{use_drop_with_options, use_list, UseDropOptions};
 use yew_router::hooks::use_navigator;
 
@@ -34,35 +38,85 @@ pub fn upload() -> Html {
 #[function_component(UploadInner)]
 fn upload_inner() -> HtmlResult {
     let navigator = use_navigator().unwrap();
-    let dropped_files = use_list(vec![]);
+    let dropped_files: yew_hooks::prelude::UseListHandle<(File, String)> = use_list(vec![]);
 
-    let resp = use_future(|| async move {
-        let profile_key = gloo::storage::LocalStorage::get("token");
-        let profile_key: Option<String> = match profile_key {
-            Ok(key) => key,
-            Err(_) => None,
-        };
-        let token = if let Some(key) = profile_key {
-            key
-        } else {
-            navigator.push(&Route::Profile);
-            String::new()
-        };
+    let resp = {
+        shadow_clone!(navigator);
+        use_future(|| async move {
+            let profile_key = gloo::storage::LocalStorage::get("token");
+            let profile_key: Option<String> = match profile_key {
+                Ok(key) => key,
+                Err(_) => None,
+            };
+            let token = if let Some(key) = profile_key {
+                key
+            } else {
+                navigator.push(&Route::Profile);
+                String::new()
+            };
 
-        let pricing = reqwest::get("https://pandoc.danya02.ru/api/pricing")
-            .await?
-            .error_for_status()?
-            .json::<PricingInfo>()
-            .await?;
+            let pricing = reqwest::get("https://pandoc.danya02.ru/api/pricing")
+                .await?
+                .error_for_status()?
+                .json::<PricingInfo>()
+                .await?;
 
-        let my_info = reqwest::get(format!("https://pandoc.danya02.ru/api/user-info/{token}"))
-            .await?
-            .error_for_status()?
-            .json::<UserInfoResult>()
-            .await?;
+            let my_info = reqwest::get(format!("https://pandoc.danya02.ru/api/user-info/{token}"))
+                .await?
+                .error_for_status()?
+                .json::<UserInfoResult>()
+                .await?;
 
-        Ok::<_, anyhow::Error>((pricing, my_info))
-    })?;
+            Ok::<_, anyhow::Error>((pricing, my_info))
+        })?
+    };
+
+    let do_upload = {
+        shadow_clone!(dropped_files);
+        use_async(async move {
+            let profile_key = gloo::storage::LocalStorage::get("token");
+            let profile_key: Option<String> = match profile_key {
+                Ok(key) => key,
+                Err(_) => None,
+            };
+            let token = if let Some(key) = profile_key {
+                key
+            } else {
+                navigator.push(&Route::Profile);
+                return Err("Нет токена");
+            };
+
+            let client = reqwest::Client::new();
+
+            let mut form = reqwest::multipart::Form::new();
+
+            for (file, name) in dropped_files.current().iter() {
+                let promise: Promise = file.array_buffer();
+                let array_buf = wasm_bindgen_futures::JsFuture::from(promise).await;
+                let array_buf = if let Ok(a) = array_buf {
+                    a
+                } else {
+                    let _ = web_sys::window().unwrap().alert_with_message(
+                        "Ошибка при чтении файла, проверьте существование всех файлов",
+                    );
+                    return Err("Ошибка при чтении файлов");
+                };
+                let array_buf: ArrayBuffer = array_buf.dyn_into().unwrap();
+                let int8arr = Uint8Array::new(&array_buf);
+                let data = int8arr.to_vec();
+                form = form.part(name.to_string(), reqwest::multipart::Part::bytes(data));
+            }
+
+            let resp = client
+                .post(format!("https://pandoc.danya02.ru/api/orders/new/{token}"))
+                .multipart(form)
+                .send()
+                .await
+                .map_err(|_| "Ошибка при отправке файлов")?;
+
+            Ok::<String, &'static str>(resp.text().await.map_err(|_| "Что-то не так с ответом")?)
+        })
+    };
 
     // let push = {
     //     shadow_clone!(dropped_files);
@@ -175,6 +229,58 @@ fn upload_inner() -> HtmlResult {
 
             let cost_str = format!("{total_cost:.3}");
 
+            let upload_block = {
+                let mut failure_reasons = vec![];
+
+                if total_cost > me.balance {
+                    failure_reasons.push(html!(<>{"У вас недостаточно баланса, чтобы загрузить все эти файлы. "}<a href="https://t.me/danya02">{"Свяжитесь с администратором"}</a>{" для покупки промо-кодов, удалите или замените большие файлы или подождите восполнения баланса."}</>));
+                }
+                let mut makefile_exists = false;
+                for (_file, name) in dropped_files.current().iter() {
+                    if name == "Makefile" {
+                        makefile_exists = true;
+                        break;
+                    }
+                }
+
+                if !makefile_exists {
+                    failure_reasons.push(html!(<>{"В загруженных файлах должен присутствовать "}<code>{"Makefile"}</code>{". Он будет выполнен для обработки вашего заказа."}</>));
+                }
+
+                if failure_reasons.is_empty() {
+                    let perform_upload = {
+                        shadow_clone!(do_upload);
+                        Callback::from(move |ev: MouseEvent| {
+                            ev.prevent_default();
+                            do_upload.run();
+                        })
+                    };
+                    html!(
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-primary" onclick={perform_upload} disabled={do_upload.loading}>
+                                {"Отправить заказ"}
+                            </button>
+                        </div>
+                    )
+                } else {
+                    html!(
+                        <>
+                            <p>{"Вы не можете отправить ваш заказ на обработку, потому что: "}</p>
+                            <ul>
+                                {
+                                    for failure_reasons.into_iter().map(|v| html!(<li>{v}</li>))
+                                }
+                            </ul>
+                            <div class="d-grid gap-2">
+                                <button disabled={true} class="btn btn-primary">
+                                    {"Отправить заказ"}
+                                </button>
+                            </div>
+                        </>
+                    )
+                }
+            };
+
             html!(
                 <>
                 <p>{"Текущий баланс: "}<code>{me.balance}{"𐆘"}</code></p>
@@ -220,6 +326,7 @@ fn upload_inner() -> HtmlResult {
                         </Column>
 
                         <Column>
+                            {upload_block}
                         </Column>
                     </Row>
 

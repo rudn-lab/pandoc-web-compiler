@@ -2,9 +2,11 @@ mod admin;
 mod pricing;
 mod profile;
 mod result;
+mod upload;
 
 use api::PricingInfo;
 use axum::{
+    extract::DefaultBodyLimit,
     routing::{get, post},
     Json, Router,
 };
@@ -41,7 +43,9 @@ async fn main() {
         .route("/", get(|| async { "Hello, World!" }))
         .route("/pricing", get(get_quote))
         .route("/user-info/:token", get(profile::get_user))
+        .route("/orders/new/:token", post(upload::upload_order))
         .route("/admin/make-user", post(admin::make_user))
+        .layer(DefaultBodyLimit::max(25 * 1024 * 1024)) // 25MB
         .with_state(AppState { db });
 
     // run our app with hyper, listening globally on port 3000

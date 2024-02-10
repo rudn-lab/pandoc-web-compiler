@@ -19,11 +19,4 @@ pub struct PricingInfo {
     pub sys_time_factor: f64,
     pub upload_mb_factor: f64,
     pub upload_file_factor: f64,
-    pub storage_plans: Vec<StoragePlan>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Copy)]
-pub struct StoragePlan {
-    pub retention_seconds: u32,
-    pub price_per_mb: f64,
 }
