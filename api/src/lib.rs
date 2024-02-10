@@ -18,6 +18,7 @@ pub struct PricingInfo {
     pub user_time_factor: f64,
     pub sys_time_factor: f64,
     pub upload_mb_factor: f64,
+    pub upload_file_factor: f64,
     pub storage_plans: Vec<StoragePlan>,
 }
 

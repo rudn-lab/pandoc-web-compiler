@@ -6,6 +6,7 @@ pub fn get_current_pricing() -> PricingInfo {
         sys_time_factor: 25.0,
         wall_time_factor: 5.0,
         upload_mb_factor: 200.0,
+        upload_file_factor: 1.0,
         storage_plans: vec![
             StoragePlan {
                 price_per_mb: 0.0,

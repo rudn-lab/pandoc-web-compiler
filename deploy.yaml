@@ -113,7 +113,7 @@ spec:
         app: front
     spec:
       nodeSelector:
-        kubernetes.io/hostname: melchior
+        kubernetes.io/hostname: danya02.ru
       containers:
         - name: front
           image: registry.danya02.ru/danya02/rudn-yamadharma-course/front:latest

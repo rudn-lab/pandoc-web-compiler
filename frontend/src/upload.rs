@@ -11,6 +11,8 @@ use web_sys::HtmlInputElement;
 use yew::prelude::*;
 use yew::suspense::use_future;
 use yew_autoprops::autoprops;
+use yew_bootstrap::component::Column;
+use yew_bootstrap::component::Row;
 use yew_bootstrap::component::Spinner;
 use yew_bootstrap::icons::BI;
 use yew_hooks::{use_drop_with_options, use_list, UseDropOptions};
@@ -76,12 +78,36 @@ fn upload_inner() -> HtmlResult {
 
     let push_with_path = {
         shadow_clone!(dropped_files);
-        Callback::from(move |items| {
+        Callback::from(move |items: Vec<(File, String)>| {
+            let mut common_prefix;
+            if let Some(first) = items.iter().next() {
+                common_prefix = first.1.as_str();
+            } else {
+                return;
+            }
+            for (_what, path) in items.iter() {
+                let mut new_common_prefix_len = 0;
+                for (a, b) in common_prefix.bytes().zip(path.bytes()) {
+                    if a == b {
+                        new_common_prefix_len += 1;
+                    } else {
+                        break;
+                    }
+                }
+                while !common_prefix.is_char_boundary(new_common_prefix_len) {
+                    new_common_prefix_len -= 1;
+                }
+                common_prefix = &common_prefix[0..new_common_prefix_len];
+            }
+            let common_prefix_len = common_prefix.len();
+            let _ = common_prefix; // destroy reference to within items
+
             for (what, path) in items {
+                let path = &path[common_prefix_len..];
                 // Ensure that there are no files with the same name already here
                 dropped_files.retain(|v: &(File, String)| v.1 != path);
 
-                dropped_files.push((what, path));
+                dropped_files.push((what, path.to_string()));
             }
         })
     };
@@ -104,6 +130,7 @@ fn upload_inner() -> HtmlResult {
                     })
                 }
             };
+            let mut total_cost = 0.0;
             let dropped_items = dropped_files
                 .current()
                 .iter()
@@ -123,14 +150,31 @@ fn upload_inner() -> HtmlResult {
                         list.push(file);
                         list.swap(idx, last_idx);
                     });
+                    let size = f.0.size();
+                    let size_str = size_format::SizeFormatterBinary::new(size as u64);
+                    let cost = (size / 1024.0 / 1024.0) * pricing.upload_mb_factor + pricing.upload_file_factor;
+                    total_cost += cost;
+                    let cost_str = format!("{cost:.3}");
                     html!(
-                    <div class="input-group mb-1" style="width: 50%;">
+                    <div class="input-group mb-1" >
                         <input type="text" class="form-control" value={f.1.clone()} {oninput}/>
+                        <span class="input-group-text">{size_str}{"B = "}<code>{cost_str}{"𐆘"}</code></span>
                         <button onclick={delete} class="btn btn-outline-danger">{BI::X}</button>
                     </div>
                     )
                 })
                 .collect::<Html>();
+
+            let delete_all = {
+                shadow_clone!(dropped_files);
+                Callback::from(move |ev: MouseEvent| {
+                    ev.prevent_default();
+                    dropped_files.clear();
+                })
+            };
+
+            let cost_str = format!("{total_cost:.3}");
+
             html!(
                 <>
                 <p>{"Текущий баланс: "}<code>{me.balance}{"𐆘"}</code></p>
@@ -141,12 +185,44 @@ fn upload_inner() -> HtmlResult {
                     <li><code>{pricing.user_time_factor}{"𐆘"}</code>{" за секунду процессора для основного кода"}</li>
                     <li><code>{pricing.sys_time_factor}{"𐆘"}</code>{" за секунду процессора для кода ядра"}</li>
                     <li><code>{pricing.upload_mb_factor}{"𐆘"}</code>{" за 1МБ загруженных файлов"}</li>
+                    <li><code>{pricing.upload_file_factor}{"𐆘"}</code>{" за один загруженный файл"}</li>
                 </ul>
 
-                <p>{"Загруженные файлы:"}</p>
-                {dropped_items}
+                <p>{"Загрузите папку с работой сюда:"}
+                    <UploadBox on_upload={push_with_path}/>
+                </p>
 
-                <UploadBox on_upload={push_with_path}/>
+                <hr />
+                <Row>
+                        <Column>
+                        <p>{"Загруженные файлы:"}</p>
+                        <div class="input-group mb-1" >
+                            <button onclick={delete_all.clone()} class="btn btn-outline-danger">{"Удалить все файлы"}</button>
+                        </div>
+                        if dropped_files.current().len() == 0 {
+                            <div class="input-group mb-1" >
+                                <span class="input-group-text">{"Пока не загружено файлов..."}</span>
+                            </div>
+
+                        } else {
+                            {dropped_items}
+                        }
+                        <div class="input-group mb-1" >
+                            <button onclick={delete_all} class="btn btn-outline-danger">{"Удалить все файлы"}</button>
+                        </div>
+                        <p class="fs-3">
+                            {"Общая стоимость файлов: "}
+                            <code>
+                            {cost_str}
+                            {"𐆘"}
+                            </code>
+                        </p>
+                        </Column>
+
+                        <Column>
+                        </Column>
+                    </Row>
+
                 </>
             )
         }
