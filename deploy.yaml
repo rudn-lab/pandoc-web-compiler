@@ -34,6 +34,8 @@ spec:
               value: "sqlite:///db/state.db"
             - name: SECRET_KEY
               value: "Supercalifragilisticexpipwnidocious"
+            - name: RUST_LOG
+              value: "debug"
 
       volumes:
         - name: db

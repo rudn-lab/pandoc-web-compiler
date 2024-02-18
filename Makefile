@@ -28,6 +28,11 @@ delete:
 debug:
 	kubectl exec -it $$(kubectl get pod -n rudn-yamadharma -o name | grep pandoc-builder) -- bash
 
+logs:
+	kubectl logs -n rudn-yamadharma -f $$(kubectl get pod -n rudn-yamadharma -o name | grep pandoc-builder | head -1)
+
+
+
 initialize_builder:
 	docker buildx create --bootstrap --name=local --driver=docker-container --platform=linux/arm64,linux/amd64
 

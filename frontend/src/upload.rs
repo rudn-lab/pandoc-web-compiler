@@ -71,7 +71,7 @@ fn upload_inner() -> HtmlResult {
         })?
     };
 
-    let do_upload = {
+    let do_upload: yew_hooks::prelude::UseAsyncHandle<String, String> = {
         shadow_clone!(dropped_files, navigator);
         use_async(async move {
             let profile_key = gloo::storage::LocalStorage::get("token");
@@ -83,7 +83,7 @@ fn upload_inner() -> HtmlResult {
                 key
             } else {
                 navigator.push(&Route::Profile);
-                return Err("Нет токена");
+                return Err("Нет токена".to_string());
             };
 
             let client = reqwest::Client::new();
@@ -99,7 +99,7 @@ fn upload_inner() -> HtmlResult {
                     let _ = web_sys::window().unwrap().alert_with_message(
                         "Ошибка при чтении файла, проверьте существование всех файлов",
                     );
-                    return Err("Ошибка при чтении файлов");
+                    return Err("Ошибка при чтении файлов".to_string());
                 };
                 let array_buf: ArrayBuffer = array_buf.dyn_into().unwrap();
                 let int8arr = Uint8Array::new(&array_buf);
@@ -112,9 +112,15 @@ fn upload_inner() -> HtmlResult {
                 .multipart(form)
                 .send()
                 .await
-                .map_err(|_| "Ошибка при отправке файлов")?;
+                .map_err(|v| format!("Ошибка при отправке файлов: {v}"))?
+                .error_for_status()
+                .map_err(|v| format!("Ошибка при отправке файлов: {v}"))?;
 
-            Ok::<String, &'static str>(resp.text().await.map_err(|_| "Что-то не так с ответом")?)
+            Ok::<String, String>(
+                resp.text()
+                    .await
+                    .map_err(|v| format!("Что-то не так с ответом: {v}"))?,
+            )
         })
     };
 
@@ -270,7 +276,7 @@ fn upload_inner() -> HtmlResult {
                                 }
                                 {"Отправить заказ"}
                             </button>
-                            if let Some(error) = do_upload.error {
+                            if let Some(ref error) = do_upload.error {
                                 <p class="text-danger">{error}</p>
                             } else {}
                         </div>

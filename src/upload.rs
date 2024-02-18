@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use api::{OrderInfoResult, UserInfo, UserInfoResult};
 use axum::{
     extract::{ws::WebSocket, Multipart, Path, State, WebSocketUpgrade},
@@ -5,7 +7,8 @@ use axum::{
     Json,
 };
 use sqlx::SqlitePool;
-use tokio::sync::mpsc;
+use tokio::{io::AsyncWriteExt, sync::mpsc};
+use tracing::Instrument;
 
 use crate::{manager::ManagerRequest, result::AppError, AppState};
 
@@ -25,9 +28,51 @@ pub async fn upload_order(
         None => Err(anyhow::anyhow!("No such token found"))?,
     };
 
-    let order_id = ManagerRequest::allocate_order(&manager_connection, data.id).await;
+    let span = tracing::debug_span!("order_upload");
+    async move {
+        tracing::debug!("Received order from {data:?}");
 
-    Ok(format!("{order_id}"))
+        let order_id = ManagerRequest::allocate_order(&manager_connection, data.id).await;
+        tracing::debug!("The order was allocated ID {order_id}");
+
+        tracing::debug!("Starting to copy files into work directory...");
+        // Now we need to copy the files into the work directory.
+        let mut idx = 0;
+        while let Some(field) = files.next_field().await? {
+            idx += 1;
+            let name = field
+                .name()
+                .map(ToString::to_string)
+                .unwrap_or_else(|| format!("lost+found-{idx}.bin"));
+            tracing::debug!("File: {name:?}");
+            let data = field.bytes().await?;
+            tracing::debug!("Data: {} bytes", data.len());
+            let path = safe_path::scoped_join(format!("/compile/{order_id}"), name)?;
+
+            // If the directory doesn't exist, we need to create it.
+            let file_parent = path.parent().ok_or_else(|| {
+                anyhow::anyhow!("Error while creating parent dir for path {path:?}")
+            })?;
+            if !file_parent.exists() {
+                tokio::fs::create_dir_all(file_parent).await?;
+            }
+
+            let mut file = tokio::fs::OpenOptions::new()
+                .create(true)
+                .write(true)
+                .open(path)
+                .await?;
+
+            file.write_all(&data).await?;
+        }
+        tracing::debug!("Files copied to work directory!");
+
+        ManagerRequest::uploaded_files(&manager_connection, order_id).await;
+
+        Ok(format!("{order_id}"))
+    }
+    .instrument(span)
+    .await
 }
 
 pub async fn get_order_status(

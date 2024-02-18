@@ -4,6 +4,7 @@ mod pricing;
 mod profile;
 mod result;
 mod upload;
+mod worker;
 
 use api::PricingInfo;
 use axum::{
@@ -24,6 +25,8 @@ struct AppState {
 #[tokio::main]
 async fn main() {
     let _ = dotenvy::dotenv(); // Try loading values, ignoring missing files.
+
+    tracing_subscriber::fmt::init();
 
     let url = std::env::var("DATABASE_URL").expect("DATABASE_URL should point at a sqlite db");
     if let Some(prefix) = url.strip_prefix("sqlite://") {
@@ -55,7 +58,12 @@ async fn main() {
     let (manager_connection, manager_rx) = mpsc::channel(100);
     let cancel = tokio_util::sync::CancellationToken::new();
 
-    tokio::task::spawn(run_manager(manager_rx, db.clone(), cancel.clone()));
+    tokio::task::spawn(run_manager(
+        manager_rx,
+        manager_connection.clone(),
+        db.clone(),
+        cancel.clone(),
+    ));
 
     // build our application with a single route
     let app = Router::new()
