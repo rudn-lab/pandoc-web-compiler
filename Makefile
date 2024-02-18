@@ -2,6 +2,8 @@ all: build build-front rollover
 
 front: build-front rollover-front
 
+back: build rollover-back
+
 build:
 	docker buildx build --platform linux/amd64 --progress plain . --tag registry.danya02.ru/danya02/rudn-yamadharma-course/builder:latest --builder local --push
 
