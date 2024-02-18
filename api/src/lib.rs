@@ -15,8 +15,7 @@ pub struct UserInfo {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct PricingInfo {
     pub wall_time_factor: f64,
-    pub user_time_factor: f64,
-    pub sys_time_factor: f64,
+    pub cpu_time_factor: f64,
     pub upload_mb_factor: f64,
     pub upload_file_factor: f64,
 }

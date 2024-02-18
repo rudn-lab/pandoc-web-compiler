@@ -1,11 +1,18 @@
 use std::{
+    collections::HashMap,
     io::{stderr, stdout},
     os::fd::{AsRawFd, IntoRawFd},
     path::Path,
     time::Duration,
 };
 
-use nix::sys::wait::{WaitPidFlag, WaitStatus};
+use nix::{
+    sys::{
+        time::TimeSpec,
+        wait::{WaitPidFlag, WaitStatus},
+    },
+    unistd::Pid,
+};
 use sqlx::SqlitePool;
 use tokio::sync::{mpsc, oneshot, watch};
 use tokio_util::sync::CancellationToken;
@@ -42,7 +49,7 @@ pub async fn run_order_work(
         .await?;
 
     tracing::warn!("Entering danger section");
-    fork_and_make(order_id).await;
+    fork_and_make(order_id).await?;
     tracing::warn!("Exiting danger section");
 
     tokio::time::sleep(Duration::from_secs(10)).await;
@@ -55,7 +62,7 @@ pub async fn run_order_work(
     Ok(())
 }
 
-async fn fork_and_make(order_id: i64) {
+async fn fork_and_make(order_id: i64) -> anyhow::Result<()> {
     match unsafe { nix::unistd::fork() } {
         Ok(nix::unistd::ForkResult::Child) => {
             // We're the child process: chdir to the order's directory
@@ -110,6 +117,7 @@ async fn fork_and_make(order_id: i64) {
             // Loop, periodically waiting for the child.
             // Collect the process times each cycle.
             let mut child_is_alive = true;
+            let mut cpu_times: HashMap<Pid, TimeSpec> = HashMap::new();
             while child_is_alive {
                 let res = nix::sys::wait::waitid(
                     nix::sys::wait::Id::Pid(child),
@@ -121,23 +129,72 @@ async fn fork_and_make(order_id: i64) {
                     child_is_alive = false;
                 }
 
-                let mut tms = nix::libc::tms {
-                    tms_utime: 0,
-                    tms_stime: 0,
-                    tms_cutime: 0,
-                    tms_cstime: 0,
-                };
-                unsafe {
-                    libc::times(&mut tms);
-                };
-                println!(
-                    "Process stats: tms_utime: {}, tms_stime: {}, tms_cutime: {}, tms_cstime: {}",
-                    tms.tms_utime, tms.tms_stime, tms.tms_cutime, tms.tms_cstime
-                );
-                std::thread::sleep(Duration::from_secs(1));
+                collect_cpu_time(child, &mut cpu_times)
+                    .await
+                    .expect("Failed to collect cpu time for process");
+
+                println!("{cpu_times:#?}");
+                std::thread::sleep(Duration::from_millis(50));
             }
+            Ok(())
         }
 
-        Err(_) => println!("Fork failed"),
+        Err(_) => Err(anyhow::anyhow!("Fork failed")),
     }
+}
+
+async fn collect_cpu_time(
+    which: Pid,
+    cpu_times: &mut HashMap<Pid, TimeSpec>,
+) -> anyhow::Result<()> {
+    // First, detect all the children of the process.
+    #[async_recursion::async_recursion]
+    async fn collect_children(of: Pid, to: &mut Vec<Pid>) -> anyhow::Result<()> {
+        to.push(of);
+        let tasks = tokio::fs::read_dir(format!("/proc/{of}/task")).await;
+        let mut tasks = if let Ok(t) = tasks {
+            t
+        } else {
+            return Ok(()); // If there was an error reading the task list, then the process probably died already, so we ignore it.
+        };
+        while let Some(item) = tasks.next_entry().await? {
+            let task = item.file_name();
+            let task = task.to_string_lossy();
+            if let Ok(children) =
+                tokio::fs::read_to_string(format!("/proc/{of}/task/{task}/children")).await
+            {
+                for child in children.split_ascii_whitespace() {
+                    collect_children(
+                        Pid::from_raw(child.parse().expect("Process ID is not an integer?")),
+                        to,
+                    )
+                    .await?;
+                }
+            } else {
+                // If failed reading children, then the process probably died already, so we ignore it.
+                return Ok(());
+            }
+        }
+        Ok(())
+    }
+
+    let mut pids = vec![];
+    collect_children(which, &mut pids).await?;
+
+    // Then, for each one, get its CPU clock, then query its value.
+    for pid in pids {
+        if let Ok(clock_id) = nix::time::clock_getcpuclockid(pid) {
+            if let Ok(time) = nix::time::clock_gettime(clock_id) {
+                cpu_times.insert(pid, time);
+            } else {
+                // The process probably died already.
+                continue;
+            }
+        } else {
+            // The process probably died already.
+            continue;
+        }
+    }
+
+    Ok(())
 }
