@@ -5,6 +5,7 @@ front: build-front rollover-front
 back: build rollover-back
 
 build:
+	cargo sqlx prepare
 	docker buildx build --platform linux/amd64 --progress plain . --tag registry.danya02.ru/danya02/rudn-yamadharma-course/builder:latest --builder local --push
 
 build-front:

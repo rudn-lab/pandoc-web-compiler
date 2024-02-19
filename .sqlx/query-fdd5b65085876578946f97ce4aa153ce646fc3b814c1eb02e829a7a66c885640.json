@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE orders SET is_running=0, status_json=? WHERE id=?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "fdd5b65085876578946f97ce4aa153ce646fc3b814c1eb02e829a7a66c885640"
+}

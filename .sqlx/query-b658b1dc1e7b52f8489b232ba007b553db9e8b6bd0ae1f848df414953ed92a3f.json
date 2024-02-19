@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT accounts.* FROM accounts INNER JOIN orders ON orders.user_id=accounts.id WHERE orders.id=?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "user_name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "token",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "balance",
+        "ordinal": 3,
+        "type_info": "Float"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "b658b1dc1e7b52f8489b232ba007b553db9e8b6bd0ae1f848df414953ed92a3f"
+}

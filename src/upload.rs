@@ -10,7 +10,7 @@ use sqlx::SqlitePool;
 use tokio::{io::AsyncWriteExt, sync::mpsc};
 use tracing::Instrument;
 
-use crate::{manager::ManagerRequest, result::AppError, AppState};
+use crate::{manager::ManagerRequest, result::AppError, worker::RunningJobHandle, AppState};
 
 pub async fn upload_order(
     State(AppState {
@@ -38,6 +38,7 @@ pub async fn upload_order(
         tracing::debug!("Starting to copy files into work directory...");
         // Now we need to copy the files into the work directory.
         let mut idx = 0;
+        let mut size = 0;
         while let Some(field) = files.next_field().await? {
             idx += 1;
             let name = field
@@ -47,6 +48,7 @@ pub async fn upload_order(
             tracing::debug!("File: {name:?}");
             let data = field.bytes().await?;
             tracing::debug!("Data: {} bytes", data.len());
+            size += data.len();
             let path = safe_path::scoped_join(format!("/compile/{order_id}"), name)?;
 
             // If the directory doesn't exist, we need to create it.
@@ -67,7 +69,13 @@ pub async fn upload_order(
         }
         tracing::debug!("Files copied to work directory!");
 
-        ManagerRequest::uploaded_files(&manager_connection, order_id).await;
+        ManagerRequest::uploaded_files(
+            &manager_connection,
+            order_id,
+            idx,
+            size as f64 / 1024.0 / 1024.0,
+        )
+        .await;
 
         Ok(format!("{order_id}"))
     }
@@ -110,15 +118,16 @@ pub async fn get_live_order_status(
         None => Err(anyhow::anyhow!("the order does not exist or is inaccessible"))?,
     };
 
-    Ok(ws.on_upgrade(move |ws| handle_live_order_status(order_id, db, manager_connection, ws)))
+    let status = ManagerRequest::query_live_status(&manager_connection, order_id).await;
+    match status {
+        Some(handle) => Ok(ws.on_upgrade(move |ws| {
+            handle_live_order_status(handle, order_id, db, manager_connection, ws)
+        })),
+        None => Ok(ws.on_upgrade(move |ws| timer(ws))),
+    }
 }
 
-async fn handle_live_order_status(
-    order_id: i64,
-    db: SqlitePool,
-    manager_connection: mpsc::Sender<ManagerRequest>,
-    mut ws: WebSocket,
-) {
+async fn timer(mut ws: WebSocket) {
     let mut idx = 0;
     // TODO: actually implement order manipulation
     loop {
@@ -129,5 +138,41 @@ async fn handle_live_order_status(
         .unwrap();
         idx += 1;
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    }
+}
+
+async fn handle_live_order_status(
+    mut handle: RunningJobHandle,
+    order_id: i64,
+    db: SqlitePool,
+    manager_connection: mpsc::Sender<ManagerRequest>,
+    mut ws: WebSocket,
+) {
+    let update_interval = std::time::Duration::from_millis(500);
+    let mut last_update_at = std::time::SystemTime::UNIX_EPOCH;
+
+    loop {
+        tokio::select! {
+            _ =  handle.status.changed() => {
+                if last_update_at.elapsed().unwrap() > update_interval {
+                    ws.send(axum::extract::ws::Message::Text(format!(
+                        "{:?}",
+                        handle.status.borrow_and_update()
+                    )))
+                    .await
+                    .unwrap();
+                    last_update_at = std::time::SystemTime::now();
+                }
+            }
+            _ =  handle.job_termination.recv() => {
+                    ws.send(axum::extract::ws::Message::Text(format!(
+                        "DONE",
+                    )))
+                    .await
+                    .unwrap();
+                    ws.close().await.unwrap();
+                    return;
+            }
+        }
     }
 }

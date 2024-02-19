@@ -308,6 +308,7 @@ fn upload_inner() -> HtmlResult {
                 <ul>
                     <li><code>{pricing.wall_time_factor}{"𐆘"}</code>{" за секунду реального времени выполнения"}</li>
                     <li><code>{pricing.cpu_time_factor}{"𐆘"}</code>{" за секунду времени процессора"}</li>
+                    <li><code>{pricing.process_fork_cost}{"𐆘"}</code>{" за каждый запущенный процесс"}</li>
                     <li><code>{pricing.upload_mb_factor}{"𐆘"}</code>{" за 1МБ загруженных файлов"}</li>
                     <li><code>{pricing.upload_file_factor}{"𐆘"}</code>{" за один загруженный файл"}</li>
                 </ul>
