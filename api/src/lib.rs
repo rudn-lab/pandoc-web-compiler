@@ -32,16 +32,24 @@ pub enum OrderInfoResult {
     Running,
 
     /// The order is now completed.
-    Completed { info: OrderInfo, is_on_disk: bool },
+    Completed(OrderInfoFull),
 }
 
-/// This record is stored in the database and returned when orders are offline.
-#[derive(Serialize, Deserialize, Clone, Debug)]
+/// This record is stored in the database.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct OrderInfo {
     pub balance_before: f64,
     pub order_cost: f64,
     pub pricing_applied: PricingInfo,
     pub termination: JobTerminationStatus,
+}
+
+/// This is returned in the API for requests about orders that are already done.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct OrderInfoFull {
+    pub record: OrderInfo,
+    pub is_on_disk: bool,
+    pub created_at_unix_time: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Default, Debug, PartialEq)]
@@ -128,4 +136,13 @@ pub enum JobStatus {
 pub struct LiveStatus {
     pub status: JobStatus,
     pub pricing: PricingInfo,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct OrderFileList(pub Vec<OrderFile>);
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct OrderFile {
+    pub path: String,
+    pub size_bytes: u64,
 }

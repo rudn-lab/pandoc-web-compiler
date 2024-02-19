@@ -32,6 +32,11 @@
                 });
             }
 
+			function format_unix_time(time) {
+				let date = new Date(time * 1000);
+				return date.toLocaleString();
+			}
+
         </script>
 	</head>
 </html>

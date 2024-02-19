@@ -280,7 +280,8 @@ async fn fork_and_make(
                         child_exit_status = Some(status);
                     }
                 } else {
-                    return Err(anyhow::anyhow!("Failed to wait for completion of child"));
+                    tracing::error!("Failed to waitid() for child: {res:?}");
+                    child_exit_status = Some(-(res.unwrap_err() as i32))
                 }
             }
 

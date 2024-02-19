@@ -1,4 +1,4 @@
-use api::{LiveStatus, OrderInfoResult};
+use api::{LiveStatus, OrderFileList, OrderInfoFull, OrderInfoResult};
 use gloo::{storage::Storage, utils::document};
 use shadow_clone::shadow_clone;
 use yew::{prelude::*, suspense::use_future};
@@ -61,8 +61,8 @@ pub fn order_inner(id: i64) -> HtmlResult {
             OrderInfoResult::Running => Ok(html!(
                     <OrderInnerLive {id} />
             )),
-            OrderInfoResult::Completed { info, is_on_disk } => {
-                Ok(html!(<>{"Completed: "}{format!("{info:?} {is_on_disk}")}</>))
+            OrderInfoResult::Completed(info) => {
+                Ok(html!(<DisplayCompletedOrder {id} info={info.clone()}/>))
             }
         },
         Err(ref failure) => Ok(
@@ -71,9 +71,144 @@ pub fn order_inner(id: i64) -> HtmlResult {
     }
 }
 
+#[wasm_bindgen::prelude::wasm_bindgen]
+extern "C" {
+    fn format_unix_time(time: f64) -> String;
+}
+
+#[autoprops]
+#[function_component(DisplayCompletedOrder)]
+fn display_completed_order(id: i64, info: &OrderInfoFull) -> Html {
+    let files = if !info.is_on_disk {
+        html!(<div class="alert alert-warning">{"Файлы этого заказа были удалены, потому что он был выполнен слишком давно."}</div>)
+    } else {
+        let fallback = html!(<p>{"Загружаем список файлов..."} <Spinner small={true} /></p>);
+        html!(
+            <Suspense {fallback}>
+                <h3>{"Файлы в рабочей директории"}</h3>
+                <OrderFiles {id} />
+            </Suspense>
+        )
+    };
+
+    let cost_breakdown = match info.record.termination {
+        api::JobTerminationStatus::AbnormalTermination(ref why) => {
+            html!(<><p>{"Неожиданный результат: "}{why}</p></>)
+        }
+        api::JobTerminationStatus::VeryAbnormalTermination(ref why) => {
+            html!(<><p>{"Совсем неожиданный результат: "}{why}</p></>)
+        }
+        api::JobTerminationStatus::ProcessExit {
+            exit_code,
+            ref cause,
+            ref metrics,
+            ref costs,
+        } => {
+            let priced = costs;
+            let cause = match cause {
+                api::TerminationCause::NaturalTermination => "процесс завершился самостоятельно",
+                api::TerminationCause::UserKill => "остановка пользователем",
+                api::TerminationCause::BalanceKill => "остановка по недостатку баланса",
+            };
+            html!(
+                <>
+                <p>{"Процесс завершился с кодом: "}{exit_code}</p>
+                <p>{"Причина завершения: "}{cause}</p>
+                <p>{"Секунд процессора: "}<code>{format!("{:.5}", metrics.cpu_seconds)}</code>{"="}<code>{format!("{:.5}", priced.cpu_time)}{MONEY}</code></p>
+                <p>{"Секунд реального времени: "}<code>{format!("{:.5}", metrics.wall_seconds)}</code>{"="}<code>{format!("{:.5}", priced.wall_time)}{MONEY}</code></p>
+                <p>{"Процессов запущенно: "}<code>{format!("{:.5}", metrics.processes_forked)}</code>{"="}<code>{format!("{:.5}", priced.processes)}{MONEY}</code></p>
+                <p>{"МБ загружено: "}<code>{format!("{:.5}", metrics.uploaded_mb)}</code>{"="}<code>{format!("{:.5}", priced.upload_mb)}{MONEY}</code></p>
+                <p>{"Файлов загружено: "}<code>{format!("{:.5}", metrics.uploaded_files)}</code>{"="}<code>{format!("{:.5}", priced.upload_files)}{MONEY}</code></p>
+                </>
+            )
+        }
+    };
+
+    html!(
+        <>
+            <h1>{"Заказ "}{id}</h1>
+            <p>{"Создан: "}{format_unix_time(info.created_at_unix_time as f64)}</p>
+                <details>
+                    <summary>{"Стоимость: "}<code>{format!("{:.3}{MONEY}", info.record.order_cost)}</code></summary>
+
+                    {cost_breakdown}
+
+                </details>
+            <p>{"Результат: "}{format!("{:?}", info.record.termination)}</p>
+            <hr/>
+            {files}
+        </>
+    )
+}
+
+#[autoprops]
+#[function_component(OrderFiles)]
+fn order_files(id: i64) -> HtmlResult {
+    let navigator = use_navigator().unwrap();
+    let resp = {
+        shadow_clone!(navigator);
+        use_future(|| async move {
+            let profile_key = gloo::storage::LocalStorage::get("token");
+            let profile_key: Option<String> = match profile_key {
+                Ok(key) => key,
+                Err(_) => None,
+            };
+            let token = if let Some(key) = profile_key {
+                key
+            } else {
+                navigator.push(&Route::Profile);
+                String::new()
+            };
+
+            let order_info = reqwest::get(format!(
+                "https://pandoc.danya02.ru/api/orders/{token}/{id}/files"
+            ))
+            .await?
+            .error_for_status()?
+            .json::<OrderFileList>()
+            .await?;
+
+            Ok::<_, anyhow::Error>(order_info)
+        })?
+    };
+
+    Ok(match &*resp {
+        Ok(files) => {
+            let rows = files
+                .0
+                .iter()
+                .map(|v| {
+                    html!(
+                        <tr>
+                            <td>{&v.path}</td>
+                            <td>{size_format::SizeFormatterBinary::new(v.size_bytes)}{"Б"}</td>
+                        </tr>
+                    )
+                })
+                .collect::<Html>();
+            html!(
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>{"Путь к файлу"}</th>
+                            <th>{"Размер"}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {rows}
+                    </tbody>
+                </table>
+            )
+        }
+        Err(ref why) => {
+            html!(<div class="alert alert-danger">{"Не получилось загрузить список файлов: "}{why}</div>)
+        }
+    })
+}
+
 #[autoprops]
 #[function_component(OrderInnerLive)]
-pub fn order_inner_live(id: i64) -> Html {
+fn order_inner_live(id: i64) -> Html {
     let navigator = use_navigator().unwrap();
     let last_data = use_state_eq(|| None);
     let did_open = use_state_eq(|| false);

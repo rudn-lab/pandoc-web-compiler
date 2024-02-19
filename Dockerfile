@@ -18,6 +18,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/git,id=${TARGETARCH} \
 
 
 FROM pandoc/extra:edge-ubuntu
-RUN apt update && apt install -y sqlite3 make python3 python-is-python3 && rm -rf /var/lib/apt
+RUN apt update && apt install -y sqlite3 make python3 python-is-python3 python3-pip && rm -rf /var/lib/apt
+RUN pip3 install psutil --no-cache-dir
 COPY --from=builder /exec /exec
 ENTRYPOINT ["/exec"]

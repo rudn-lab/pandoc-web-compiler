@@ -1,6 +1,12 @@
-use std::fmt::Debug;
+use std::{
+    fmt::Debug,
+    fs::FileType,
+    os::unix::fs::MetadataExt,
+    time::{Duration, SystemTime},
+};
 
-use api::{LiveStatus, OrderInfoResult};
+use anyhow::anyhow;
+use api::{LiveStatus, OrderFile, OrderFileList, OrderInfoFull, OrderInfoResult};
 use axum::{
     extract::{ws::WebSocket, Multipart, Path, State, WebSocketUpgrade},
     response::IntoResponse,
@@ -106,12 +112,13 @@ pub async fn get_order_status(
         None => {
             // It's not running: only use data from database.
 
-            Ok(Json(OrderInfoResult::Completed {
-                info: serde_json::from_str(&data.status_json.ok_or(anyhow::anyhow!(
+            Ok(Json(OrderInfoResult::Completed(OrderInfoFull {
+                record: serde_json::from_str(&data.status_json.ok_or(anyhow::anyhow!(
                     "Database row didn't have data for a completed job"
                 ))?)?,
                 is_on_disk: data.is_on_disk,
-            }))
+                created_at_unix_time: data.created_at_unix_time as u64,
+            })))
         }
     }
 }
@@ -174,7 +181,6 @@ async fn handle_live_order_status(
                             pricing: get_current_pricing(),
                         }
                     ).unwrap();
-                    tracing::debug!("Sending WS msg: {data:?}");
                     ws.send(axum::extract::ws::Message::Text(data))
                     .await
                     .unwrap();
@@ -198,7 +204,7 @@ async fn handle_live_order_status(
                 if let Ok(msg) = msg {
                     match msg {
                         axum::extract::ws::Message::Text(_data) => {
-                            // The user has requested a stop: otherwise no message is sent.
+                            // The user has requested a stop: that's the only reason for receiving messages.
                             handle.stop.cancel();
                         },
                         _ => {}
@@ -207,4 +213,60 @@ async fn handle_live_order_status(
             }
         }
     }
+}
+
+pub async fn get_order_file_list(
+    State(AppState {
+        db,
+        manager_connection,
+    }): State<AppState>,
+    Path((token, order_id)): Path<(String, i64)>,
+) -> Result<Json<OrderFileList>, AppError> {
+    let data = match sqlx::query!("SELECT orders.* FROM accounts INNER JOIN orders ON orders.user_id=accounts.id WHERE token=? AND orders.id=?", token, order_id)
+        .fetch_optional(&db)
+        .await?
+    {
+        Some(v) => v,
+        None => return Err(anyhow!("Order does not exist or is inaccessible"))?,
+    };
+
+    // Collect the file list
+    let mut files = vec![];
+
+    #[async_recursion::async_recursion]
+    async fn get_files_in(
+        location: std::path::PathBuf,
+        prefix: String,
+        to: &mut Vec<OrderFile>,
+    ) -> anyhow::Result<()> {
+        let mut dir = tokio::fs::read_dir(&location).await?;
+        while let Some(v) = dir.next_entry().await? {
+            let name = v.file_name();
+            let name = name.to_string_lossy();
+            let meta = v.metadata().await?;
+            if meta.file_type().is_dir() {
+                let mut new_location = location.clone();
+                new_location.push(&name.to_string());
+                let mut new_prefix = prefix.clone();
+                new_prefix.push_str(&name);
+                new_prefix.push('/');
+                get_files_in(new_location, new_prefix, to).await?;
+            } else if meta.file_type().is_file() {
+                let size_bytes = meta.size();
+                let path = format!("{prefix}{name}");
+                to.push(OrderFile { path, size_bytes });
+            }
+        }
+
+        Ok(())
+    }
+
+    get_files_in(
+        std::path::PathBuf::from(&format!("/compile/{order_id}")),
+        String::new(),
+        &mut files,
+    )
+    .await?;
+
+    Ok(Json(OrderFileList(files)))
 }

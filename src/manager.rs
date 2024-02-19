@@ -1,11 +1,10 @@
 use std::collections::HashMap;
-use api::JobTerminationStatus;
-use serde::{Serialize, Deserialize};
+use api::{JobTerminationStatus, OrderInfo};
 use sqlx::SqlitePool;
 use tokio::{sync::{broadcast::error::TryRecvError, mpsc, oneshot}, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 
-use crate::worker::{self, RunningJobHandle};
+use crate::{pricing::get_current_pricing, worker::{self, RunningJobHandle}};
 
 #[derive(Debug)]
 pub enum ManagerRequest {
@@ -191,7 +190,8 @@ async fn handle_msg(msg: ManagerRequest, db: &SqlitePool, running_handles: &mut 
                 };
 
                 if let Some(status) = status {
-                    let status_json = serde_json::to_string(&status).unwrap();
+                    let info = OrderInfo { balance_before: 0.0, order_cost: 0.0, pricing_applied: get_current_pricing(), termination: status };
+                    let status_json = serde_json::to_string(&info).unwrap();
                     sqlx::query!("UPDATE orders SET is_running=0, status_json=? WHERE id=?", status_json, id).execute(db).await?;
                 }
             }
