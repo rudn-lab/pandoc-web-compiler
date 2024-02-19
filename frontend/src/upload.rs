@@ -23,6 +23,7 @@ use yew_hooks::{use_drop_with_options, use_list, UseDropOptions};
 use yew_router::hooks::use_navigator;
 
 use crate::Route;
+use crate::MONEY;
 
 #[function_component(Upload)]
 pub fn upload() -> Html {
@@ -218,7 +219,7 @@ fn upload_inner() -> HtmlResult {
                     html!(
                     <div class="input-group mb-1" >
                         <input type="text" class="form-control" value={f.1.clone()} {oninput}/>
-                        <span class="input-group-text">{size_str}{"B = "}<code>{cost_str}{"𐆘"}</code></span>
+                        <span class="input-group-text">{size_str}{"B = "}<code>{cost_str}{MONEY}</code></span>
                         <button onclick={delete} class="btn btn-outline-danger">{BI::X}</button>
                     </div>
                     )
@@ -272,7 +273,7 @@ fn upload_inner() -> HtmlResult {
                         <div class="d-grid gap-2">
                             <button class="btn btn-primary" onclick={perform_upload} disabled={do_upload.loading}>
                                 if do_upload.loading {
-                                    <Spinner small={true} />
+                                    <Spinner small={true} style={yew_bootstrap::util::Color::Success} />
                                 }
                                 {"Отправить заказ"}
                             </button>
@@ -291,7 +292,7 @@ fn upload_inner() -> HtmlResult {
                                 }
                             </ul>
                             <div class="d-grid gap-2">
-                                <button disabled={true} class="btn btn-primary">
+                                <button disabled={true} class="btn btn-outline-primary">
                                     {"Отправить заказ"}
                                 </button>
                             </div>
@@ -302,15 +303,15 @@ fn upload_inner() -> HtmlResult {
 
             html!(
                 <>
-                <p>{"Текущий баланс: "}<code>{me.balance}{"𐆘"}</code></p>
+                <p>{"Текущий баланс: "}<code>{format!("{:.3}{MONEY}", me.balance)}</code></p>
 
                 <p>{"Текушие расценки:"}</p>
                 <ul>
-                    <li><code>{pricing.wall_time_factor}{"𐆘"}</code>{" за секунду реального времени выполнения"}</li>
-                    <li><code>{pricing.cpu_time_factor}{"𐆘"}</code>{" за секунду времени процессора"}</li>
-                    <li><code>{pricing.process_fork_cost}{"𐆘"}</code>{" за каждый запущенный процесс"}</li>
-                    <li><code>{pricing.upload_mb_factor}{"𐆘"}</code>{" за 1МБ загруженных файлов"}</li>
-                    <li><code>{pricing.upload_file_factor}{"𐆘"}</code>{" за один загруженный файл"}</li>
+                    <li><code>{pricing.wall_time_factor}{MONEY}</code>{" за секунду реального времени выполнения"}</li>
+                    <li><code>{pricing.cpu_time_factor}{MONEY}</code>{" за секунду времени процессора"}</li>
+                    <li><code>{pricing.process_fork_cost}{MONEY}</code>{" за каждый запущенный процесс"}</li>
+                    <li><code>{pricing.upload_mb_factor}{MONEY}</code>{" за 1МБ загруженных файлов"}</li>
+                    <li><code>{pricing.upload_file_factor}{MONEY}</code>{" за один загруженный файл"}</li>
                 </ul>
 
                 <p>{"Загрузите папку с работой сюда:"}
@@ -339,7 +340,7 @@ fn upload_inner() -> HtmlResult {
                             {"Общая стоимость файлов: "}
                             <code>
                             {cost_str}
-                            {"𐆘"}
+                            {MONEY}
                             </code>
                         </p>
                         </Column>

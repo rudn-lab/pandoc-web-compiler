@@ -8,5 +8,6 @@ pub fn get_current_pricing() -> PricingInfo {
         upload_mb_factor: 50.0,
         upload_file_factor: 0.5,
         overdraft_seconds_allowed: 10.0,
+        error_order_cost: 100.0,
     }
 }

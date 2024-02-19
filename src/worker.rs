@@ -6,9 +6,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use api::{
-    JobTerminationStatus, OrderExecutionMetrics, OrderExecutionMetricsCosts, TerminationCause,
-};
+use api::{JobStatus, JobTerminationStatus, OrderExecutionMetrics, OrderInfo, TerminationCause};
 use nix::{
     sys::{
         time::TimeSpec,
@@ -17,23 +15,10 @@ use nix::{
     unistd::Pid,
 };
 use sqlx::SqlitePool;
-use tokio::sync::{broadcast, mpsc, oneshot, watch};
+use tokio::sync::{broadcast, mpsc, watch};
 use tokio_util::sync::CancellationToken;
 
 use crate::{manager::ManagerRequest, pricing::get_current_pricing};
-
-/// This represents the status of a running job.
-#[derive(Debug)]
-pub enum JobStatus {
-    /// The job is preparing to start executing the makefile.
-    Preparing,
-
-    /// The job is currently executing the makefile, with the following metrics.
-    Executing(OrderExecutionMetrics),
-
-    /// The job is now terminated
-    Terminated(JobTerminationStatus),
-}
 
 /// This allows communicating with a job that's currently running.
 #[derive(Debug)]
@@ -87,20 +72,21 @@ pub async fn run_order_work(
         .send(ManagerRequest::BeginWork { order_id, handle })
         .await?;
 
-    let data = match sqlx::query!("SELECT accounts.* FROM accounts INNER JOIN orders ON orders.user_id=accounts.id WHERE orders.id=?", order_id)
+    let user_data = match sqlx::query!("SELECT accounts.* FROM accounts INNER JOIN orders ON orders.user_id=accounts.id WHERE orders.id=?", order_id)
         .fetch_optional(&db)
         .await?
     {
         Some(v) => v,
         None => {
             let term = JobTerminationStatus::AbnormalTermination(format!("When job was preparing, could not find account associated with order {order_id}"));
-            let status_json = serde_json::to_string(&term).unwrap();
+            let order_status = OrderInfo { balance_before: 0.0, order_cost: 0.0, pricing_applied: get_current_pricing(), termination: term.clone() };
+            let status_json = serde_json::to_string(&order_status).unwrap();
             status_send.send_replace(JobStatus::Terminated(term));
             sqlx::query!("UPDATE orders SET is_running=0, status_json=? WHERE id=?", status_json, order_id).execute(&db).await?;
-    return Ok(());
+            return Ok(());
         },
     };
-    let original_balance = data.balance;
+    let original_balance = user_data.balance;
 
     let pre_metrics = OrderExecutionMetrics {
         uploaded_mb,
@@ -119,9 +105,41 @@ pub async fn run_order_work(
     .await?;
     tracing::warn!("Exiting danger section");
 
-    status_send.send_replace(JobStatus::Terminated(termination));
+    status_send.send_replace(JobStatus::Terminated(termination.clone()));
 
-    tokio::time::sleep(Duration::from_secs(10)).await;
+    // Write to database
+    let mut transaction = db.begin().await?;
+    let total_cost = if let JobTerminationStatus::ProcessExit { ref costs, .. } = &termination {
+        costs.grand_total()
+    } else {
+        get_current_pricing().error_order_cost // Small baseline cost for errored orders
+    };
+
+    let order_status = OrderInfo {
+        balance_before: user_data.balance,
+        order_cost: total_cost,
+        pricing_applied: get_current_pricing(),
+        termination: termination.clone(),
+    };
+    let status_json = serde_json::to_string(&order_status).unwrap();
+
+    sqlx::query!(
+        "UPDATE orders SET is_running=0, status_json=? WHERE id=?",
+        status_json,
+        order_id
+    )
+    .execute(&mut *transaction)
+    .await?;
+
+    sqlx::query!(
+        "UPDATE accounts SET balance=balance-? WHERE id=?",
+        total_cost,
+        user_data.id
+    )
+    .execute(&mut *transaction)
+    .await?;
+
+    transaction.commit().await?;
 
     sender
         .send(ManagerRequest::FinishWork { order_id })

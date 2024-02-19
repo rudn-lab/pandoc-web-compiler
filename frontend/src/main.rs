@@ -14,6 +14,8 @@ use crate::profile::Profile;
 use crate::profile::ProfileNav;
 use crate::upload::Upload;
 
+const MONEY: &str = "𐆘";
+
 #[derive(Clone, Routable, PartialEq)]
 enum Route {
     #[at("/")]

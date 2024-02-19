@@ -6,13 +6,13 @@ mod result;
 mod upload;
 mod worker;
 
-use api::PricingInfo;
+use api::{OrderInfo, PricingInfo};
 use axum::{
     extract::DefaultBodyLimit,
     routing::{get, post},
     Json, Router,
 };
-use manager::{run_manager, ManagerRequest, OrderStatusInfo};
+use manager::{run_manager, ManagerRequest};
 use pricing::get_current_pricing;
 use tokio::sync::mpsc;
 
@@ -46,7 +46,15 @@ async fn main() {
         .expect("Failed to apply migrations");
 
     // Mark all orders that were running before with an abnormal termination.
-    let abnormal = serde_json::to_string(&OrderStatusInfo::AbnormalTermination).unwrap();
+    let abnormal = serde_json::to_string(&OrderInfo {
+        balance_before: 0.0,
+        order_cost: 0.0,
+        pricing_applied: get_current_pricing(),
+        termination: api::JobTerminationStatus::VeryAbnormalTermination(format!(
+            "Job was marked as running across application restart"
+        )),
+    })
+    .unwrap();
     sqlx::query!(
         "UPDATE orders SET status_json=?, is_running=0 WHERE is_running=1",
         abnormal

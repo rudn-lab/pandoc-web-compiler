@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use api::{OrderInfoResult, UserInfo, UserInfoResult};
+use api::{LiveStatus, OrderInfoResult};
 use axum::{
     extract::{ws::WebSocket, Multipart, Path, State, WebSocketUpgrade},
     response::IntoResponse,
@@ -10,7 +10,10 @@ use sqlx::SqlitePool;
 use tokio::{io::AsyncWriteExt, sync::mpsc};
 use tracing::Instrument;
 
-use crate::{manager::ManagerRequest, result::AppError, worker::RunningJobHandle, AppState};
+use crate::{
+    manager::ManagerRequest, pricing::get_current_pricing, result::AppError,
+    worker::RunningJobHandle, AppState,
+};
 
 pub async fn upload_order(
     State(AppState {
@@ -98,8 +101,19 @@ pub async fn get_order_status(
         None => return Ok(Json(OrderInfoResult::NotAccessible)),
     };
 
-    // TODO: actually implement order manipulation
-    Ok(Json(OrderInfoResult::Running))
+    match ManagerRequest::query_live_status(&manager_connection, order_id).await {
+        Some(_handle) => Ok(Json(OrderInfoResult::Running)),
+        None => {
+            // It's not running: only use data from database.
+
+            Ok(Json(OrderInfoResult::Completed {
+                info: serde_json::from_str(&data.status_json.ok_or(anyhow::anyhow!(
+                    "Database row didn't have data for a completed job"
+                ))?)?,
+                is_on_disk: data.is_on_disk,
+            }))
+        }
+    }
 }
 
 pub async fn get_live_order_status(
@@ -123,22 +137,21 @@ pub async fn get_live_order_status(
         Some(handle) => Ok(ws.on_upgrade(move |ws| {
             handle_live_order_status(handle, order_id, db, manager_connection, ws)
         })),
-        None => Ok(ws.on_upgrade(move |ws| timer(ws))),
+        None => Ok(ws.on_upgrade(move |ws| close_immediately(ws))),
     }
 }
 
-async fn timer(mut ws: WebSocket) {
-    let mut idx = 0;
-    // TODO: actually implement order manipulation
-    loop {
-        ws.send(axum::extract::ws::Message::Text(format!(
-            "still alive~ {idx}",
-        )))
-        .await
-        .unwrap();
-        idx += 1;
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-    }
+async fn close_immediately(mut ws: WebSocket) {
+    ws.send(axum::extract::ws::Message::Close(Some(
+        axum::extract::ws::CloseFrame {
+            code: 1008,
+            reason: "Job has already terminated at time of connection".into(),
+        },
+    )))
+    .await
+    .unwrap();
+    ws.close().await.unwrap();
+    return;
 }
 
 async fn handle_live_order_status(
@@ -148,30 +161,49 @@ async fn handle_live_order_status(
     manager_connection: mpsc::Sender<ManagerRequest>,
     mut ws: WebSocket,
 ) {
-    let update_interval = std::time::Duration::from_millis(500);
+    let update_interval = std::time::Duration::from_millis(200);
     let mut last_update_at = std::time::SystemTime::UNIX_EPOCH;
 
     loop {
         tokio::select! {
             _ =  handle.status.changed() => {
                 if last_update_at.elapsed().unwrap() > update_interval {
-                    ws.send(axum::extract::ws::Message::Text(format!(
-                        "{:?}",
-                        handle.status.borrow_and_update()
-                    )))
+                    let data = serde_json::to_string(
+                        &LiveStatus{
+                            status: (&*handle.status.borrow_and_update()).clone(),
+                            pricing: get_current_pricing(),
+                        }
+                    ).unwrap();
+                    tracing::debug!("Sending WS msg: {data:?}");
+                    ws.send(axum::extract::ws::Message::Text(data))
                     .await
                     .unwrap();
                     last_update_at = std::time::SystemTime::now();
                 }
             }
-            _ =  handle.job_termination.recv() => {
-                    ws.send(axum::extract::ws::Message::Text(format!(
-                        "DONE",
+            Err(_) =  handle.job_termination.recv() => {
+                    ws.send(axum::extract::ws::Message::Close(Some(
+                        axum::extract::ws::CloseFrame {
+                            code: 1000,
+                            reason: "Job has terminated".into(),
+                        },
                     )))
                     .await
                     .unwrap();
                     ws.close().await.unwrap();
                     return;
+            }
+
+            Some(msg) = ws.recv() => {
+                if let Ok(msg) = msg {
+                    match msg {
+                        axum::extract::ws::Message::Text(_data) => {
+                            // The user has requested a stop: otherwise no message is sent.
+                            handle.stop.cancel();
+                        },
+                        _ => {}
+                    }
+                }
             }
         }
     }

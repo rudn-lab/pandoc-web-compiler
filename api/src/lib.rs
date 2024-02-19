@@ -1,5 +1,3 @@
-use std::time::SystemTime;
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -14,7 +12,7 @@ pub struct UserInfo {
     pub balance: f64,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
 pub struct PricingInfo {
     pub wall_time_factor: f64,
     pub cpu_time_factor: f64,
@@ -22,6 +20,7 @@ pub struct PricingInfo {
     pub upload_file_factor: f64,
     pub process_fork_cost: f64,
     pub overdraft_seconds_allowed: f64,
+    pub error_order_cost: f64,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -33,17 +32,19 @@ pub enum OrderInfoResult {
     Running,
 
     /// The order is now completed.
-    Completed(OrderInfo),
+    Completed { info: OrderInfo, is_on_disk: bool },
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+/// This record is stored in the database and returned when orders are offline.
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct OrderInfo {
     pub balance_before: f64,
     pub order_cost: f64,
     pub pricing_applied: PricingInfo,
+    pub termination: JobTerminationStatus,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Default, Debug)]
+#[derive(Serialize, Deserialize, Clone, Copy, Default, Debug, PartialEq)]
 pub struct OrderExecutionMetrics {
     pub cpu_seconds: f64,
     pub wall_seconds: f64,
@@ -53,7 +54,7 @@ pub struct OrderExecutionMetrics {
     pub time_until_overdraft_stop: Option<f64>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct OrderExecutionMetricsCosts {
     pub cpu_time: f64,
     pub wall_time: f64,
@@ -80,7 +81,7 @@ impl OrderExecutionMetricsCosts {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum JobTerminationStatus {
     /// Something unexpected happened, and the job terminated itself.
     AbnormalTermination(String),
@@ -98,7 +99,7 @@ pub enum JobTerminationStatus {
 }
 
 /// Why did the process exit?
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum TerminationCause {
     /// It terminated by itself
     NaturalTermination,
@@ -108,4 +109,23 @@ pub enum TerminationCause {
 
     /// Killed because of running out of money
     BalanceKill,
+}
+
+/// This represents the status of a running job.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub enum JobStatus {
+    /// The job is preparing to start executing the makefile.
+    Preparing,
+
+    /// The job is currently executing the makefile, with the following metrics.
+    Executing(OrderExecutionMetrics),
+
+    /// The job is now terminated
+    Terminated(JobTerminationStatus),
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct LiveStatus {
+    pub status: JobStatus,
+    pub pricing: PricingInfo,
 }

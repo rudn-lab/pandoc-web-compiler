@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use api::JobTerminationStatus;
 use serde::{Serialize, Deserialize};
 use sqlx::SqlitePool;
-use tokio::{sync::{broadcast::error::TryRecvError, mpsc, oneshot, watch}, task::JoinHandle};
+use tokio::{sync::{broadcast::error::TryRecvError, mpsc, oneshot}, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 
 use crate::worker::{self, RunningJobHandle};
@@ -203,7 +203,3 @@ async fn handle_msg(msg: ManagerRequest, db: &SqlitePool, running_handles: &mut 
     Ok(())
 }
 
-#[derive(Clone, Serialize, Deserialize)]
-pub enum OrderStatusInfo {
-    AbnormalTermination,
-}
