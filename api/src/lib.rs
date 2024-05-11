@@ -147,3 +147,22 @@ pub struct OrderFile {
     pub size_bytes: u64,
     pub is_new: bool,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct LoginRequest {
+    pub handle: String,
+    pub password: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct ChangePasswordRequest {
+    pub new_password: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub enum ChangePasswordResponse {
+    /// The password was changed OK, here is the new token
+    Ok { new_token: String },
+    /// The old token was not correct, so the change was not applied
+    InvalidToken,
+}

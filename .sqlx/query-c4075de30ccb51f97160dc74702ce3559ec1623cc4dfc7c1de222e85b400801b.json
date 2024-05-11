@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT * FROM logins WHERE handle=?",
+  "describe": {
+    "columns": [
+      {
+        "name": "handle",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "password_hash",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "account_id",
+        "ordinal": 2,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "c4075de30ccb51f97160dc74702ce3559ec1623cc4dfc7c1de222e85b400801b"
+}

@@ -1,0 +1,56 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT * FROM accounts INNER JOIN logins ON logins.account_id=accounts.id WHERE handle=?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "user_name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "token",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "balance",
+        "ordinal": 3,
+        "type_info": "Float"
+      },
+      {
+        "name": "handle",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "password_hash",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "account_id",
+        "ordinal": 6,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "dad67a9299722a094e205b332b4aef11ece02cf816a29679880947947d43123f"
+}

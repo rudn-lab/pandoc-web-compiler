@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE logins SET password_hash=? WHERE account_id=?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "5b787d42131f3c8a2aacae828b3e528f2a762e9e02553a7e230d1c0f73977836"
+}

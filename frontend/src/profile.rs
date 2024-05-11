@@ -1,3 +1,4 @@
+use api::LoginRequest;
 use api::UserInfo;
 use api::UserInfoResult;
 use gloo::storage::Storage;
@@ -169,40 +170,51 @@ fn register() -> Html {
 #[function_component(ExistingRegister)]
 fn existing_register() -> Html {
     let navigator = use_navigator().unwrap();
-    let token_state = use_state(|| String::new());
-    let oninput_token = {
-        shadow_clone!(token_state);
+    let handle_state = use_state(|| String::new());
+    let password_state = use_state(|| String::new());
+
+    let oninput_handle = {
+        shadow_clone!(handle_state);
         move |ev: InputEvent| {
             let target: HtmlInputElement = ev.target().unwrap().dyn_into().unwrap();
-            token_state.set(target.value());
+            handle_state.set(target.value());
         }
     };
-    let token_result: yew_hooks::prelude::UseAsyncHandle<UserInfoResult, String> = use_async({
-        shadow_clone!(token_state);
+
+    let oninput_password = {
+        shadow_clone!(password_state);
+        move |ev: InputEvent| {
+            let target: HtmlInputElement = ev.target().unwrap().dyn_into().unwrap();
+            password_state.set(target.value());
+        }
+    };
+    let token_result: yew_hooks::prelude::UseAsyncHandle<Option<String>, String> = use_async({
+        shadow_clone!(handle_state, password_state);
         async move {
-            let token = (*token_state).clone();
-            Ok(
-                reqwest::get(format!("https://pandoc.danya02.ru/api/user-info/{token}"))
+            Ok({
+                let handle = (*handle_state).clone();
+                let password = (*password_state).clone();
+                let client = reqwest::Client::default();
+                client
+                    .post("https://pandoc.danya02.ru/api/user-info/login")
+                    .json(&LoginRequest { handle, password })
+                    .send()
                     .await
                     .map_err(|v| v.to_string())?
-                    .json::<UserInfoResult>()
+                    .json::<Option<String>>()
                     .await
-                    .map_err(|v| v.to_string())?,
-            )
+                    .map_err(|v| v.to_string())?
+            })
         }
     });
 
     let validation = match &token_result.data {
         Some(data) => match data {
-            UserInfoResult::Ok(_) => FormControlValidation::Valid(None),
-            UserInfoResult::NoSuchToken => {
-                FormControlValidation::Invalid("Этот токен не найден".into())
-            }
+            Some(_) => FormControlValidation::Valid(None),
+            None => FormControlValidation::Invalid("Неверный логин или пароль".into()),
         },
         None => match &token_result.error {
-            Some(why) => {
-                FormControlValidation::Invalid(format!("Ошибка при проверке токена: {why}").into())
-            }
+            Some(why) => FormControlValidation::Invalid(format!("Ошибка при входе: {why}").into()),
             None => FormControlValidation::None,
         },
     };
@@ -215,8 +227,7 @@ fn existing_register() -> Html {
     };
 
     if let Some(data) = &token_result.data {
-        if let UserInfoResult::Ok(UserInfo { .. }) = data {
-            let token = &*token_state;
+        if let Some(ref token) = data {
             gloo::storage::LocalStorage::set("token", token.to_string()).unwrap();
             navigator.push(&Route::Home);
             gloo::utils::document()
@@ -231,17 +242,20 @@ fn existing_register() -> Html {
         <>
             <h1>{"Войти в аккаунт"}</h1>
 
-            <FormControl id="token" ctype={FormControlType::Text} class="mb-3" label="Токен аккаунта" oninput={oninput_token} value={(*token_state).clone()} {validation}/>
+            <form>
+                <FormControl id="handle" ctype={FormControlType::Text} class="mb-3" label="Логин" oninput={oninput_handle} value={(*handle_state).clone()} disabled={&token_result.loading} validation={validation.clone()}/>
+                <FormControl id="password" ctype={FormControlType::Password} class="mb-3" label="Пароль" oninput={oninput_password} value={(*password_state).clone()} disabled={&token_result.loading} {validation}/>
 
 
-            <Button style={Color::Primary} disabled={&token_result.loading} onclick={start}>
-                if token_result.loading {
-                    <Spinner small={true}  />
-                }
-                {"Войти с токеном"}
-            </Button>
+                <Button style={Color::Primary} disabled={&token_result.loading} onclick={start}>
+                    if token_result.loading {
+                        <Spinner small={true}  />
+                    }
+                    {"Войти"}
+                </Button>
+            </form>
             <hr />
-            <p>{"Если у вас нет токена, "}<a href="https://t.me/danya02">{"обратитесь к администратору для регистрации"}</a>{"."}</p>
+            <p>{"Если у вас нет аккаунта, "}<a href="https://t.me/danya02">{"обратитесь к администратору для регистрации"}</a>{"."}</p>
         </>
     )
 }

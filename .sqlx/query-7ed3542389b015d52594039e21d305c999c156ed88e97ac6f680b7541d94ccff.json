@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO logins (handle, password_hash, account_id) VALUES (?,?,?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "7ed3542389b015d52594039e21d305c999c156ed88e97ac6f680b7541d94ccff"
+}
