@@ -333,9 +333,9 @@ fn upload_inner() -> HtmlResult {
                         } else {
                             {dropped_items}
                         }
-                        <div class="input-group mb-1" >
-                            <button onclick={delete_all} class="btn btn-outline-danger">{"Удалить все файлы"}</button>
-                        </div>
+                        // <div class="input-group mb-1" >
+                        //     <button onclick={delete_all} class="btn btn-outline-danger">{"Удалить все файлы"}</button>
+                        // </div>
                         <p class="fs-3">
                             {"Общая стоимость файлов: "}
                             <code>

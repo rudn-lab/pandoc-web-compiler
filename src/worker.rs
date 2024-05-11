@@ -59,8 +59,6 @@ pub async fn run_order_work(
     // We'll drop this on the way out of the function (including on panics)
     let (_term_send, term_recv) = broadcast::channel(1);
 
-    // We'll write to here if we manage to write everything to the database.
-
     let handle = RunningJobHandle {
         status: status_recv,
         stop: cancel.clone(),
@@ -187,10 +185,12 @@ async fn fork_and_make(
                 "Started make process at {}",
                 chrono::Local::now().format("%Y-%m-%d %H:%M:%S")
             );
+            println!("Child stdout stream");
             eprintln!(
                 "Started make process at {}",
                 chrono::Local::now().format("%Y-%m-%d %H:%M:%S")
             );
+            eprintln!("Child stderr stream");
             println!("-----");
             eprintln!("-----");
 

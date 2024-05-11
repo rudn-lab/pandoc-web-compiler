@@ -81,7 +81,15 @@ async fn main() {
         .route("/orders/:token/new", post(upload::upload_order))
         .route("/orders/:token/:id", get(upload::get_order_status))
         .route("/orders/:token/:id/files", get(upload::get_order_file_list))
+        .route(
+            "/orders/:token/:id/files/download/:name",
+            get(upload::fetch_file),
+        )
         .route("/orders/:token/:id/ws", get(upload::get_live_order_status))
+        .route(
+            "/orders/:token/:id/stream/:stream",
+            get(upload::get_live_order_stream),
+        )
         .route("/admin/make-user", post(admin::make_user))
         .layer(DefaultBodyLimit::max(100 * 1024 * 1024)) // 100MB
         .with_state(AppState {

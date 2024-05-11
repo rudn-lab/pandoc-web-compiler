@@ -73,7 +73,7 @@ fn app() -> Html {
                 <div class="container-fluid">
                     <Link<Route> classes="navbar-brand" to={Route::Home}>{"Yamadharma Pandoc"}</Link<Route>>
 
-                    <Link<Route> classes="nav-link" to={Route::Upload}>{"Загрузить на обработку"}</Link<Route>>
+                    <Link<Route> classes="nav-link" to={Route::Upload}>{"Загрузка на обработку"}</Link<Route>>
 
                     <ProfileNav />
                 </div>

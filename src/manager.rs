@@ -18,9 +18,10 @@ pub enum ManagerRequest {
     },
 
     /// The files have been fully received, begin the order processing.
+    /// Included is a list of file names that were there originally.
     UploadFiles {
         order_id: i64,
-        file_count: usize,
+        file_list: Vec<String>,
         file_size_mb: f64,
     },
 
@@ -59,8 +60,8 @@ impl ManagerRequest {
         recv.await
             .expect("Manager didn't respond to allocate_order")
     }
-    pub async fn uploaded_files(sender: &mpsc::Sender<ManagerRequest>, order_id: i64, file_count: usize, file_size_mb: f64) {
-        sender.send(Self::UploadFiles { order_id, file_count, file_size_mb }).await.expect("Manager thread closed");
+    pub async fn uploaded_files(sender: &mpsc::Sender<ManagerRequest>, order_id: i64, file_list: Vec<String>, file_size_mb: f64) {
+        sender.send(Self::UploadFiles { order_id, file_list, file_size_mb }).await.expect("Manager thread closed");
     }
 
     pub async fn query_live_status(sender: &mpsc::Sender<ManagerRequest>, order_id: i64) -> Option<RunningJobHandle> {
@@ -138,7 +139,10 @@ async fn handle_msg(msg: ManagerRequest, db: &SqlitePool, running_handles: &mut 
                 std::fs::remove_dir_all(format!("/compile/{id}"))?;
             }
         },
-        ManagerRequest::UploadFiles { order_id, file_count, file_size_mb } => {
+        ManagerRequest::UploadFiles { order_id, file_list, file_size_mb } => {
+            let file_list_json = serde_json::to_string(&file_list)?;
+            let file_count = file_list.len();
+            sqlx::query!("UPDATE orders SET src_file_list=? WHERE id=?", file_list_json, order_id).execute(db).await?;
             tracing::debug!("Spawning a new task to work on order {order_id}");
             join_handles.insert(order_id, tokio::task::spawn(worker::run_order_work(order_id, db.clone(), sender.clone(), (file_count, file_size_mb))));
         },

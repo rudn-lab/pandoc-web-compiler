@@ -145,4 +145,5 @@ pub struct OrderFileList(pub Vec<OrderFile>);
 pub struct OrderFile {
     pub path: String,
     pub size_bytes: u64,
+    pub is_new: bool,
 }

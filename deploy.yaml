@@ -16,7 +16,7 @@ spec:
         app: pandoc-builder
     spec:
       nodeSelector:
-        kubernetes.io/hostname: melchior
+        kubernetes.io/hostname: balthazar
       containers:
         - name: pandoc-builder
           image: registry.danya02.ru/danya02/rudn-yamadharma-course/builder:latest

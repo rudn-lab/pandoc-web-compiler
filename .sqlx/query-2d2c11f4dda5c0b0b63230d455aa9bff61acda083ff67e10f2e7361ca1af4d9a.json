@@ -32,6 +32,11 @@
         "name": "status_json",
         "ordinal": 5,
         "type_info": "Text"
+      },
+      {
+        "name": "src_file_list",
+        "ordinal": 6,
+        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -43,7 +48,8 @@
       false,
       false,
       false,
-      true
+      true,
+      false
     ]
   },
   "hash": "2d2c11f4dda5c0b0b63230d455aa9bff61acda083ff67e10f2e7361ca1af4d9a"
