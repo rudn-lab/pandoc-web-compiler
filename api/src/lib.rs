@@ -166,3 +166,17 @@ pub enum ChangePasswordResponse {
     /// The old token was not correct, so the change was not applied
     InvalidToken,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub enum RedeemPromocodeResponse {
+    /// The promocode was redeemed OK, and the balance has been updated.
+    Ok {
+        promocode_value: f64,
+        user_balance_after: f64,
+    },
+    /// The promocode was redeemed already
+    AlreadyRedeemed { when_unix_time: u64, by_me: bool },
+
+    /// The promocode doesn't seem to exist at all.
+    NotFound,
+}

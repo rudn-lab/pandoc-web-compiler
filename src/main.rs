@@ -78,6 +78,10 @@ async fn main() {
         .route("/", get(|| async { "Hello, World!" }))
         .route("/pricing", get(get_quote))
         .route("/user-info/:token", get(profile::get_user))
+        .route(
+            "/user-info/:token/redeem/:code",
+            post(profile::redeem_promocode),
+        )
         .route("/user-info/login", post(profile::login))
         .route(
             "/user-info/:token/change-password",
@@ -96,6 +100,8 @@ async fn main() {
             get(upload::get_live_order_stream),
         )
         .route("/admin/make-user", post(admin::make_user))
+        .route("/admin/fetch-promocodes", get(admin::fetch_promocodes))
+        .route("/admin/make-promocodes", post(admin::make_promocodes))
         .route("/admin/reset-password", post(admin::reset_password))
         .layer(DefaultBodyLimit::max(100 * 1024 * 1024)) // 100MB
         .with_state(AppState {

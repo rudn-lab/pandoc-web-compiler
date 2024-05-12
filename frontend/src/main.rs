@@ -1,5 +1,6 @@
 mod order;
 mod profile;
+mod promocodes;
 mod upload;
 
 use gloo::storage::Storage;

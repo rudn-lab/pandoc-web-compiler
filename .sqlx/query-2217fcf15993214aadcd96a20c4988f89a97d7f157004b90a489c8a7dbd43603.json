@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE promocodes SET claimed_by=?, claimed_at_unix_time=? WHERE id=?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "2217fcf15993214aadcd96a20c4988f89a97d7f157004b90a489c8a7dbd43603"
+}

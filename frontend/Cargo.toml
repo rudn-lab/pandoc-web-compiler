@@ -8,6 +8,8 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.79"
 api = { version = "0.1.0", path = "../api" }
+chrono = "0.4.38"
+chrono-humanize = "0.2.3"
 gloo = "0.11.0"
 js-sys = "0.3.68"
 log = "0.4.20"

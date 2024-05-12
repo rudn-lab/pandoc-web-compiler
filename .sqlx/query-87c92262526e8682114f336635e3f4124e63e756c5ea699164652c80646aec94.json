@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE accounts SET balance=balance+? WHERE id=? RETURNING balance",
+  "describe": {
+    "columns": [
+      {
+        "name": "balance",
+        "ordinal": 0,
+        "type_info": "Float"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "87c92262526e8682114f336635e3f4124e63e756c5ea699164652c80646aec94"
+}

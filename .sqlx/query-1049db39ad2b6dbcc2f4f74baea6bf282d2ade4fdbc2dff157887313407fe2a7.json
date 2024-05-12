@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO promocodes (code, money_value, created_at_unix_time) VALUES (?,?,?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "1049db39ad2b6dbcc2f4f74baea6bf282d2ade4fdbc2dff157887313407fe2a7"
+}

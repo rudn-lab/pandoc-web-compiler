@@ -14,6 +14,7 @@ use yew_hooks::use_async;
 use yew_router::hooks::use_navigator;
 use yew_router::prelude::Link;
 
+use crate::promocodes::RedeemPromocodeWidget;
 use crate::Route;
 
 #[function_component(Profile)]
@@ -58,7 +59,14 @@ fn profile_inner(props: &ProfileNavInnerProps) -> HtmlResult {
                 <>
                     <h1>{name}</h1>
                     <h2>{"Ваш текущий баланс: "}<code>{format!("{balance:.3}")}{"𐆘"}</code></h2>
-
+                    <Row>
+                        <Column>
+                            <RedeemPromocodeWidget />
+                        </Column>
+                        <Column>
+                            //<AccountOptions />
+                        </Column>
+                    </Row>
                 </>
             },
             UserInfoResult::NoSuchToken => {

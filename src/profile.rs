@@ -1,4 +1,7 @@
-use api::{ChangePasswordRequest, ChangePasswordResponse, LoginRequest, UserInfo, UserInfoResult};
+use api::{
+    ChangePasswordRequest, ChangePasswordResponse, LoginRequest, RedeemPromocodeResponse, UserInfo,
+    UserInfoResult,
+};
 use axum::{
     extract::{Path, State},
     Json,
@@ -120,4 +123,66 @@ pub async fn change_password(
         .await?;
 
     Ok(Json(ChangePasswordResponse::Ok { new_token: token }))
+}
+
+pub async fn redeem_promocode(
+    State(AppState { db, .. }): State<AppState>,
+    Path((token, code)): Path<(String, String)>,
+) -> Result<Json<RedeemPromocodeResponse>, AppError> {
+    // First find the account corresponding to the token
+    let account = match sqlx::query!("SELECT * FROM accounts WHERE token=?", token)
+        .fetch_optional(&db)
+        .await?
+    {
+        Some(row) => row,
+        None => return Err(anyhow::anyhow!("User token is invalid"))?,
+    };
+
+    // Then find the promocode
+    let promocode = match sqlx::query!("SELECT * FROM promocodes WHERE code=?", code)
+        .fetch_optional(&db)
+        .await?
+    {
+        Some(row) => row,
+        None => return Ok(Json(RedeemPromocodeResponse::NotFound)),
+    };
+
+    // Check if it's been claimed.
+    if let (Some(by_id), Some(when)) = (promocode.claimed_by, promocode.claimed_at_unix_time) {
+        return Ok(Json(RedeemPromocodeResponse::AlreadyRedeemed {
+            when_unix_time: when as u64,
+            by_me: by_id == account.id,
+        }));
+    }
+
+    // Transactionally alter the balance, and also mark the promocode as claimed.
+    let mut tx = db.begin().await?;
+
+    let user_balance_after = sqlx::query!(
+        "UPDATE accounts SET balance=balance+? WHERE id=? RETURNING balance",
+        promocode.money_value,
+        account.id
+    )
+    .fetch_one(&mut *tx)
+    .await?
+    .balance;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+
+    sqlx::query!(
+        "UPDATE promocodes SET claimed_by=?, claimed_at_unix_time=? WHERE id=?",
+        account.id,
+        now,
+        promocode.id
+    )
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+
+    Ok(Json(RedeemPromocodeResponse::Ok {
+        promocode_value: promocode.money_value as f64,
+        user_balance_after,
+    }))
 }

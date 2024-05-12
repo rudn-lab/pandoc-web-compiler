@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT * FROM promocodes WHERE code=?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "code",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "money_value",
+        "ordinal": 2,
+        "type_info": "Int64"
+      },
+      {
+        "name": "created_at_unix_time",
+        "ordinal": 3,
+        "type_info": "Int64"
+      },
+      {
+        "name": "claimed_by",
+        "ordinal": 4,
+        "type_info": "Int64"
+      },
+      {
+        "name": "claimed_at_unix_time",
+        "ordinal": 5,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "2a4b50edc7b9b09a2fdeb19f7b97bf57756fb32600e0fc8f27b32f458de3744e"
+}
