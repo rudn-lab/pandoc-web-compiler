@@ -336,17 +336,18 @@ fn upload_inner() -> HtmlResult {
                         // <div class="input-group mb-1" >
                         //     <button onclick={delete_all} class="btn btn-outline-danger">{"Удалить все файлы"}</button>
                         // </div>
-                        <p class="fs-3">
-                            {"Общая стоимость файлов: "}
-                            <code>
-                            {cost_str}
-                            {MONEY}
-                            </code>
-                        </p>
                         </Column>
 
                         <Column>
                             {upload_block}
+                            <p class="fs-3">
+                                {"Общая стоимость файлов: "}
+                                <code>
+                                {cost_str}
+                                {MONEY}
+                                </code>
+                            </p>
+
                         </Column>
                     </Row>
 

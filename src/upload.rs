@@ -102,7 +102,7 @@ pub async fn get_order_status(
     }): State<AppState>,
     Path((token, order_id)): Path<(String, i64)>,
 ) -> Result<Json<OrderInfoResult>, AppError> {
-    let data = match sqlx::query!("SELECT orders.* FROM accounts INNER JOIN orders ON orders.user_id=accounts.id WHERE token=? AND orders.id=?", token, order_id)
+    let data = match sqlx::query!("SELECT orders.*, accounts.balance FROM accounts INNER JOIN orders ON orders.user_id=accounts.id WHERE token=? AND orders.id=?", token, order_id)
         .fetch_optional(&db)
         .await?
     {
@@ -111,7 +111,9 @@ pub async fn get_order_status(
     };
 
     match ManagerRequest::query_live_status(&manager_connection, order_id).await {
-        Some(_handle) => Ok(Json(OrderInfoResult::Running)),
+        Some(_handle) => Ok(Json(OrderInfoResult::Running {
+            balance_at_start: data.balance,
+        })),
         None => {
             // It's not running: only use data from database.
 

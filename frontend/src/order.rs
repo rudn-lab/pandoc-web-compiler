@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
-use api::{LiveStatus, OrderFileList, OrderInfoFull, OrderInfoResult};
+use api::{LiveStatus, OrderExecutionMetrics, OrderFileList, OrderInfoFull, OrderInfoResult};
 use gloo::{storage::Storage, utils::document};
 use shadow_clone::shadow_clone;
 use yew::{prelude::*, suspense::use_future};
 use yew_autoprops::autoprops;
-use yew_bootstrap::component::Spinner;
-use yew_hooks::{use_list, use_websocket};
+use yew_bootstrap::component::{Column, Row, Spinner};
+use yew_hooks::{use_list, use_renders_count, use_websocket};
 use yew_router::hooks::use_navigator;
 
 use crate::{Route, MONEY};
@@ -60,11 +60,11 @@ pub fn order_inner(id: i64) -> HtmlResult {
             OrderInfoResult::NotAccessible => Ok(
                 html!(<div class="alert alert-warning">{"Такой заказ не существует или недоступен."}</div>),
             ),
-            OrderInfoResult::Running => Ok(html!(
+            OrderInfoResult::Running { balance_at_start } => Ok(html!(
                     <>
                         <div class="row">
                             <div class="col">
-                                <OrderInnerLive {id} />
+                                <OrderInnerLive {id} {balance_at_start} />
                             </div>
                         </div>
 
@@ -140,6 +140,7 @@ fn display_completed_order(id: i64, info: &OrderInfoFull) -> Html {
             ref costs,
         } => {
             let priced = costs;
+
             let cause = match cause {
                 api::TerminationCause::NaturalTermination => "процесс завершился самостоятельно",
                 api::TerminationCause::UserKill => "остановка пользователем",
@@ -159,17 +160,39 @@ fn display_completed_order(id: i64, info: &OrderInfoFull) -> Html {
         }
     };
 
+    let termination_alert = if let api::JobTerminationStatus::ProcessExit {
+        cause: ref which, ..
+    } = info.record.termination
+    {
+        match which {
+            api::TerminationCause::NaturalTermination => html!(),
+            api::TerminationCause::UserKill => html!(
+                <div class="alert alert-danger">
+                    {"Процесс был остановлен по вашему запросу до своего естественного завершения. Возможно, какие-то файлы были не полностью обработаны."}
+                </div>
+            ),
+            api::TerminationCause::BalanceKill => html!(
+                <div class="alert alert-danger">
+                    {"Процесс был остановлен заранее, потому что ваш баланс закончился во время исполнения заказа. Возможно, какие-то файлы были не полностью обработаны."}
+                </div>
+            ),
+        }
+    } else {
+        html!()
+    };
+
     html!(
         <>
             <h1>{"Заказ "}{id}</h1>
             <p>{"Создан: "}{format_unix_time(info.created_at_unix_time as f64)}</p>
-                <details>
-                    <summary>{"Стоимость: "}<code>{format!("{:.3}{MONEY}", info.record.order_cost)}</code></summary>
+            <details>
+                <summary>{"Стоимость: "}<code>{format!("{:.3}{MONEY}", info.record.order_cost)}</code></summary>
 
-                    {cost_breakdown}
+                {cost_breakdown}
 
-                </details>
-            //<p>{"Результат: "}{format!("{:?}", info.record.termination)}</p>
+            </details>
+
+            {termination_alert}
             <hr />
             {files}
             <hr />
@@ -327,7 +350,7 @@ fn order_files(id: i64) -> HtmlResult {
 
 #[autoprops]
 #[function_component(OrderInnerLive)]
-fn order_inner_live(id: i64) -> Html {
+fn order_inner_live(id: i64, balance_at_start: f64) -> Html {
     let navigator = use_navigator().unwrap();
     let last_data = use_state_eq(|| None);
     let did_open = use_state_eq(|| false);
@@ -374,7 +397,9 @@ fn order_inner_live(id: i64) -> Html {
                 }
             }
             let display = match *last_data {
-                Some(ref data) => html!(<OrderLiveStatus status={data.clone()} />),
+                Some(ref data) => {
+                    html!(<OrderLiveStatus status={data.clone()} {balance_at_start} />)
+                }
                 None => html!(<h1>{"Ждем информации..."}<Spinner/></h1>),
             };
 
@@ -397,11 +422,21 @@ fn order_inner_live(id: i64) -> Html {
 
 #[autoprops]
 #[function_component(OrderLiveStatus)]
-fn order_live_status(status: &LiveStatus) -> Html {
+fn order_live_status(status: &LiveStatus, balance_at_start: f64) -> Html {
     match status.status {
         api::JobStatus::Preparing => html!(<h1>{"Заказ скоро запустится..."}<Spinner/></h1>),
         api::JobStatus::Executing(metrics) => {
             let priced = metrics.calculate_costs(&status.pricing);
+            let termination_alert = if let Some(remaining) = metrics.time_until_overdraft_stop {
+                html!(
+                    <div class="alert alert-warning fs-3">
+                        <i class="bi bi-exclamation-diamond-fill" />
+                        {"У вас закончился баланс! Процесс будет остановлен через "}<code>{format!("{remaining:.1}")}</code>{" секунд!"}
+                    </div>
+                )
+            } else {
+                html!()
+            };
             html!(<>
                 <p>{"Секунд процессора: "}<code>{format!("{:.5}", metrics.cpu_seconds)}</code>{"="}<code>{format!("{:.5}", priced.cpu_time)}{MONEY}</code></p>
                 <p>{"Секунд реального времени: "}<code>{format!("{:.5}", metrics.wall_seconds)}</code>{"="}<code>{format!("{:.5}", priced.wall_time)}{MONEY}</code></p>
@@ -409,10 +444,46 @@ fn order_live_status(status: &LiveStatus) -> Html {
                 <p>{"МБ загружено: "}<code>{format!("{:.5}", metrics.uploaded_mb)}</code>{"="}<code>{format!("{:.5}", priced.upload_mb)}{MONEY}</code></p>
                 <p>{"Файлов загружено: "}<code>{format!("{:.5}", metrics.uploaded_files)}</code>{"="}<code>{format!("{:.5}", priced.upload_files)}{MONEY}</code></p>
                 <p class="fs-5">{"Всего: "}<code>{format!("{:.5}", priced.grand_total())}{MONEY}</code></p>
+                <div class="row" style="align-items: center;">
+                    <div class="col" style="text-align: center;">
+                        <h3>{"Ваш баланс"}</h3>
+                        <span class="fs-1"><code>{format!("{:.3}", balance_at_start - priced.grand_total())}{MONEY}</code></span>
+                    </div>
+                    <div class="col row" style="text-align: center;">
+                        <ArrowStream metrics={metrics.clone()}/>
+                    </div>
+                    <div class="col" style="text-align: center;">
+                        <h3>{"Стоимость этого заказа"}</h3>
+                        <span class="fs-1"><code>{format!("{:.3}", priced.grand_total())}{MONEY}</code></span>
+                    </div>
+                </div>
+
+                {termination_alert}
                 </>)
         }
         api::JobStatus::Terminated(_) => html!(<h1>{"Заказ скоро завершится..."}<Spinner/></h1>),
     }
+}
+
+#[autoprops]
+#[function_component(ArrowStream)]
+fn arrow_stream(metrics: &OrderExecutionMetrics) -> Html {
+    let _ = metrics; // This is used to trigger re-renders on every change.
+    let render_id = use_renders_count();
+    let item_count = 5;
+    let items = (0..item_count).map(|v| {
+        if render_id % item_count == v {
+            html!(
+                <div class="col fs-1 text-primary" style="width: 100%;">{"→"}</div>
+            )
+        } else {
+            html!(
+                <div class="col fs-1" style="width: 100%;">{"→"}</div>
+            )
+        }
+    });
+
+    items.collect()
 }
 
 #[autoprops]

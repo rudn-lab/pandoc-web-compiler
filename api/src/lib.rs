@@ -29,7 +29,8 @@ pub enum OrderInfoResult {
     NotAccessible,
 
     /// The order is currently being executed. Interact with it using the websocket connection.
-    Running,
+    /// The user balance before the order started is included.
+    Running { balance_at_start: f64 },
 
     /// The order is now completed.
     Completed(OrderInfoFull),

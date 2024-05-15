@@ -24,7 +24,7 @@ pub struct ResetPasswordRequest {
 #[derive(Serialize, Deserialize)]
 pub struct UnclaimedPromocode {
     code: String,
-    money_value: u64,
+    money_value: i64,
     created_at_unix_time: i64,
 }
 
@@ -137,7 +137,7 @@ pub async fn fetch_promocodes(
         data.into_iter()
             .map(|v| UnclaimedPromocode {
                 code: v.code,
-                money_value: v.money_value as u64,
+                money_value: v.money_value,
                 created_at_unix_time: v.created_at_unix_time,
             })
             .collect(),
@@ -147,7 +147,7 @@ pub async fn fetch_promocodes(
 pub async fn make_promocodes(
     State(state): State<AppState>,
     headers: HeaderMap,
-    Json(values): Json<Vec<u64>>,
+    Json(values): Json<Vec<i64>>,
 ) -> Result<Json<Vec<UnclaimedPromocode>>, AppError> {
     let db = &state.db;
     let h = headers.get("X-AuthToken");
@@ -176,7 +176,7 @@ pub async fn make_promocodes(
         .await?;
         codes.push(UnclaimedPromocode {
             code,
-            money_value: val as u64,
+            money_value: val,
             created_at_unix_time: now,
         });
     }

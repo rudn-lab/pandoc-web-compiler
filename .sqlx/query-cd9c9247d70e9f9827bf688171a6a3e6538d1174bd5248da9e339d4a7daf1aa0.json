@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT orders.*, accounts.balance FROM accounts INNER JOIN orders ON orders.user_id=accounts.id WHERE token=? AND orders.id=?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "user_id",
+        "ordinal": 1,
+        "type_info": "Int64"
+      },
+      {
+        "name": "created_at_unix_time",
+        "ordinal": 2,
+        "type_info": "Int64"
+      },
+      {
+        "name": "is_on_disk",
+        "ordinal": 3,
+        "type_info": "Bool"
+      },
+      {
+        "name": "is_running",
+        "ordinal": 4,
+        "type_info": "Bool"
+      },
+      {
+        "name": "status_json",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "src_file_list",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "balance",
+        "ordinal": 7,
+        "type_info": "Float"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "cd9c9247d70e9f9827bf688171a6a3e6538d1174bd5248da9e339d4a7daf1aa0"
+}
