@@ -55,7 +55,11 @@ fn profile_inner(props: &ProfileNavInnerProps) -> HtmlResult {
 
     let result_html = match *resp {
         Ok(ref res) => match res {
-            UserInfoResult::Ok(UserInfo { name, balance }) => html! {
+            UserInfoResult::Ok(UserInfo {
+                name,
+                balance,
+                verification,
+            }) => html! {
                 <>
                     <h1>{name}</h1>
                     <h2>{"Ваш текущий баланс: "}<code>{format!("{balance:.3}")}{"𐆘"}</code></h2>

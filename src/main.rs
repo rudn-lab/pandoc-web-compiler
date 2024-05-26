@@ -4,6 +4,7 @@ mod pricing;
 mod profile;
 mod result;
 mod upload;
+mod verification;
 mod worker;
 
 use api::{OrderInfo, PricingInfo};
@@ -81,6 +82,14 @@ async fn main() {
         .route(
             "/user-info/:token/redeem/:code",
             post(profile::redeem_promocode),
+        )
+        .route(
+            "/user-info/:token/verification/proof-of-work/get-challenge",
+            get(verification::proof_of_work::get_challenge),
+        )
+        .route(
+            "/user-info/:token/verification/proof-of-work/verify-challenge",
+            post(verification::proof_of_work::verify_challenge),
         )
         .route("/user-info/login", post(profile::login))
         .route(

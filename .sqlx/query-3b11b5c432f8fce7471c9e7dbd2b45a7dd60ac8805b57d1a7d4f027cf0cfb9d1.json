@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE accounts SET verification_method=? WHERE token=?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "3b11b5c432f8fce7471c9e7dbd2b45a7dd60ac8805b57d1a7d4f027cf0cfb9d1"
+}

@@ -1,6 +1,8 @@
+mod debug_pow;
 mod order;
 mod profile;
 mod promocodes;
+mod proof_of_work_agent;
 mod upload;
 
 use gloo::storage::Storage;
@@ -29,6 +31,9 @@ enum Route {
 
     #[at("/order/:order_id")]
     Order { order_id: i64 },
+
+    #[at("/debug/pow")]
+    DebugPow,
 
     #[not_found]
     #[at("/404")]
@@ -63,6 +68,7 @@ fn app() -> Html {
             Route::Profile => html!(<Profile />),
             Route::Upload => html!(<Upload />),
             Route::Order { order_id: id } => html!(<Order {id} />),
+            Route::DebugPow => html!(<debug_pow::DebugPow />),
             Route::NotFound => html!("404"),
         }
     }

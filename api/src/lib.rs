@@ -1,3 +1,5 @@
+pub mod verification;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -6,10 +8,35 @@ pub enum UserInfoResult {
     NoSuchToken,
 }
 
+#[derive(Serialize, Deserialize, Clone, Copy)]
+pub enum VerificationMethod {
+    None = 0,
+    ProofOfWork = 1,
+}
+
+impl From<i64> for VerificationMethod {
+    fn from(val: i64) -> Self {
+        match val {
+            1 => VerificationMethod::ProofOfWork,
+            _ => VerificationMethod::None,
+        }
+    }
+}
+
+impl From<Option<i64>> for VerificationMethod {
+    fn from(val: Option<i64>) -> Self {
+        match val {
+            Some(v) => v.into(),
+            _ => VerificationMethod::None,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct UserInfo {
     pub name: String,
     pub balance: f64,
+    pub verification: VerificationMethod,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]

@@ -38,6 +38,10 @@ pub async fn upload_order(
         None => Err(anyhow::anyhow!("No such token found"))?,
     };
 
+    if data.verification_method.is_none() {
+        return Err(anyhow::anyhow!("The account is not verified"))?;
+    }
+
     let span = tracing::debug_span!("order_upload");
     async move {
         tracing::debug!("Received order from {data:?}");

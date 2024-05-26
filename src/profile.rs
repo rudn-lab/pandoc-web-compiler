@@ -22,6 +22,7 @@ pub async fn get_user(
         Some(v) => UserInfoResult::Ok(UserInfo {
             name: v.user_name,
             balance: v.balance,
+            verification: v.verification_method.into(),
         }),
         None => UserInfoResult::NoSuchToken,
     };

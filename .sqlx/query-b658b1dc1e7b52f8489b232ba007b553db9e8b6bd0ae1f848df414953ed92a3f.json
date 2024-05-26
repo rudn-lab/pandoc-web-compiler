@@ -22,6 +22,11 @@
         "name": "balance",
         "ordinal": 3,
         "type_info": "Float"
+      },
+      {
+        "name": "verification_method",
+        "ordinal": 4,
+        "type_info": "Int64"
       }
     ],
     "parameters": {
@@ -31,7 +36,8 @@
       false,
       false,
       false,
-      false
+      false,
+      true
     ]
   },
   "hash": "b658b1dc1e7b52f8489b232ba007b553db9e8b6bd0ae1f848df414953ed92a3f"
