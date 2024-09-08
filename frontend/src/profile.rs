@@ -15,6 +15,7 @@ use yew_router::hooks::use_navigator;
 use yew_router::prelude::Link;
 
 use crate::promocodes::RedeemPromocodeWidget;
+use crate::url_macro::url;
 use crate::Route;
 
 #[function_component(Profile)]
@@ -47,7 +48,7 @@ fn profile_inner(props: &ProfileNavInnerProps) -> HtmlResult {
     let token = token.clone();
 
     let resp = use_future(|| async move {
-        reqwest::get(format!("https://pandoc.danya02.ru/api/user-info/{token}"))
+        reqwest::get(url!("/api/user-info/{token}"))
             .await?
             .json::<UserInfoResult>()
             .await
@@ -133,7 +134,7 @@ fn profile_nav_inner(props: &ProfileNavInnerProps) -> HtmlResult {
     let token = token.clone();
 
     let resp = use_future(|| async move {
-        reqwest::get(format!("https://pandoc.danya02.ru/api/user-info/{token}"))
+        reqwest::get(url!("/api/user-info/{token}"))
             .await?
             .json::<UserInfoResult>()
             .await
@@ -208,7 +209,7 @@ fn existing_register() -> Html {
                 let password = (*password_state).clone();
                 let client = reqwest::Client::default();
                 client
-                    .post("https://pandoc.danya02.ru/api/user-info/login")
+                    .post(url!("/api/user-info/login"))
                     .json(&LoginRequest { handle, password })
                     .send()
                     .await

@@ -1,0 +1,14 @@
+[Unit]
+Name=pandoc-web-compiler
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/pandoc-web-compiler
+WorkingDirectory=/var/lib/pandoc-web-compiler
+
+Environment=DATABASE_URL=sqlite:///var/lib/pandoc-web-compiler/pandoc-web-compiler.db
+Environment=SECRET_KEY=Supercalifragilisticexpipwnidocious
+Environment=RUST_LOG=debug
+
+[Install]
+WantedBy=multi-user.target

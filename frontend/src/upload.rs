@@ -22,6 +22,7 @@ use yew_hooks::use_async;
 use yew_hooks::{use_drop_with_options, use_list, UseDropOptions};
 use yew_router::hooks::use_navigator;
 
+use crate::url_macro::url;
 use crate::Route;
 use crate::MONEY;
 
@@ -56,13 +57,13 @@ fn upload_inner() -> HtmlResult {
                 String::new()
             };
 
-            let pricing = reqwest::get("https://pandoc.danya02.ru/api/pricing")
+            let pricing = reqwest::get(url!("/api/pricing"))
                 .await?
                 .error_for_status()?
                 .json::<PricingInfo>()
                 .await?;
 
-            let my_info = reqwest::get(format!("https://pandoc.danya02.ru/api/user-info/{token}"))
+            let my_info = reqwest::get(url!("/api/user-info/{token}"))
                 .await?
                 .error_for_status()?
                 .json::<UserInfoResult>()
@@ -109,7 +110,7 @@ fn upload_inner() -> HtmlResult {
             }
 
             let resp = client
-                .post(format!("https://pandoc.danya02.ru/api/orders/{token}/new"))
+                .post(url!("/api/orders/{token}/new"))
                 .multipart(form)
                 .send()
                 .await

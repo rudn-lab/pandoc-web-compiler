@@ -92,7 +92,26 @@ fn app() -> Html {
     }
 }
 
-fn main() {
+lazy_static::lazy_static! {
+    static ref BASE_URL: String = web_sys::window().unwrap().origin().to_string();
+}
+
+#[macro_use]
+mod url_macro {
+    macro_rules! url {
+        ($($x:expr),*) => {
+            {
+                use crate::BASE_URL;
+                let url_fragment = format!($($x),*);
+                let base_url = &*BASE_URL;
+                format!("{}{url_fragment}", base_url)
+            }
+        };
+    }
+    pub(crate) use url;
+}
+
+fn main() { 
     wasm_logger::init(wasm_logger::Config::default());
 
     yew::Renderer::<App>::new().render();

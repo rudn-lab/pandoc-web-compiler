@@ -15,7 +15,7 @@ use yew_bootstrap::{
 use yew_hooks::use_async;
 use yew_router::hooks::use_navigator;
 
-use crate::Route;
+use crate::{url_macro::url, Route};
 
 #[function_component(RedeemPromocodeWidget)]
 pub fn redeem_promocode_widget() -> Html {
@@ -51,9 +51,7 @@ pub fn redeem_promocode_widget() -> Html {
                     let code = (*code_state).clone();
                     let client = reqwest::Client::default();
                     client
-                        .post(format!(
-                            "https://pandoc.danya02.ru/api/user-info/{token}/redeem/{code}"
-                        ))
+                        .post(url!("/api/user-info/{token}/redeem/{code}"))
                         .send()
                         .await
                         .map_err(|v| v.to_string())?

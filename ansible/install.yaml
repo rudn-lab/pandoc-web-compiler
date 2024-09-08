@@ -1,0 +1,83 @@
+# Ansible script to install the pandoc-web-compiler app
+- name: Install pandoc-web-compiler
+  hosts: all
+  tasks:
+    # - name: Ensure installed texlive group, pandoc and caddy
+    #   become: yes
+    #   shell: |
+    #     pacman -S --noconfirm texlive pandoc caddy
+    - name: Copy the server binary
+      become: yes
+      copy:
+        src: ../target/debug/pandoc-web-compiler
+        dest: /usr/local/bin/pandoc-web-compiler
+        mode: 755
+    - name: Delete any old frontend assets
+      become: yes
+      file:
+        path: /usr/local/share/pandoc-web-compiler-web
+        state: absent
+    - name: Copy the frontend assets
+      become: yes
+      copy:
+        src: ../frontend/dist/
+        dest: /usr/local/share/pandoc-web-compiler-web
+        mode: 644
+        force: yes
+
+    - name: Ensure backend working directory exists
+      become: yes
+      file:
+        path: /var/lib/pandoc-web-compiler
+        state: directory
+        mode: 755
+    
+    - name: Ensure that the database file exists
+      become: yes
+      file:
+        path: /var/lib/pandoc-web-compiler/pandoc-web-compiler.db
+        state: touch
+        mode: 755
+
+    - name: Ensure systemd unit for backend exists
+      become: yes
+      copy:
+        src: pandoc-web-compiler.service
+        dest: /etc/systemd/system/pandoc-web-compiler.service
+        mode: 644
+        force: yes
+
+    - name: Enable and start the pandoc-web-compiler service
+      become: yes
+      service:
+        name: pandoc-web-compiler
+        enabled: yes
+        state: restarted
+    
+    - name: Copy the caddy config file
+      become: yes
+      copy:
+        src: caddy.conf
+        dest: /etc/caddy/Caddyfile
+        mode: 644
+        force: yes
+
+    - name: Copy the CA certificate
+      become: yes
+      copy:
+        src: danya02_ca.crt
+        dest: /tmp/danya02_ca.crt
+        mode: 644
+        force: yes
+    
+    - name: Trust the CA certificate
+      become: yes
+      shell: |
+        trust anchor /tmp/danya02_ca.crt
+
+    - name: Enable and start the caddy service
+      become: yes
+      service:
+        name: caddy
+        enabled: yes
+        state: restarted

@@ -9,7 +9,7 @@ use yew_bootstrap::component::{Column, Row, Spinner};
 use yew_hooks::{use_list, use_renders_count, use_websocket};
 use yew_router::hooks::use_navigator;
 
-use crate::{Route, MONEY};
+use crate::{url_macro::url, Route, MONEY};
 
 #[autoprops]
 #[function_component(Order)]
@@ -45,7 +45,7 @@ pub fn order_inner(id: i64) -> HtmlResult {
             };
 
             let order_info =
-                reqwest::get(format!("https://pandoc.danya02.ru/api/orders/{token}/{id}"))
+                reqwest::get(url!("/api/orders/{token}/{id}"))
                     .await?
                     .error_for_status()?
                     .json::<OrderInfoResult>()
@@ -220,7 +220,7 @@ fn order_files(id: i64) -> HtmlResult {
             };
 
             let order_info = reqwest::get(format!(
-                "https://pandoc.danya02.ru/api/orders/{token}/{id}/files"
+                "/api/orders/{token}/{id}/files"
             ))
             .await?
             .error_for_status()?
@@ -265,7 +265,7 @@ fn order_files(id: i64) -> HtmlResult {
                         icon_class.map(|cls| {
                             let filename = v.path.split("/").last().unwrap_or(&v.path);
                             let urlpath = urlencoding::encode(&v.path);
-                            let download_url = format!("https://pandoc.danya02.ru/api/orders/{token}/{id}/files/download/{filename}?download=true&path={urlpath}");
+                            let download_url = format!("/api/orders/{token}/{id}/files/download/{filename}?download=true&path={urlpath}");
                             let border_color = v.is_new.then_some("border-success");
                             let text_color = v.is_new.then_some("text-success");
                             let btn_color = if v.is_new {
@@ -299,8 +299,8 @@ fn order_files(id: i64) -> HtmlResult {
                 .map(|v| {
                     let filename = v.path.split("/").last().unwrap_or(&v.path);
                     let urlpath = urlencoding::encode(&v.path);
-                    let url = format!("https://pandoc.danya02.ru/api/orders/{token}/{id}/files/download/{filename}?path={urlpath}");
-                    let download_url = format!("https://pandoc.danya02.ru/api/orders/{token}/{id}/files/download/{filename}?download=true&path={urlpath}");
+                    let url = url!("/api/orders/{token}/{id}/files/download/{filename}?path={urlpath}");
+                    let download_url = url!("/api/orders/{token}/{id}/files/download/{filename}?download=true&path={urlpath}");
                     let text_class = if v.is_new {
                         "text-success"
                     } else {""};
@@ -368,9 +368,7 @@ fn order_inner_live(id: i64, balance_at_start: f64) -> Html {
         String::new()
     };
 
-    let ws = use_websocket(format!(
-        "wss://pandoc.danya02.ru/api/orders/{token}/{id}/ws"
-    ));
+    let ws = use_websocket(url!("/api/orders/{token}/{id}/ws"));
 
     match *ws.ready_state {
         yew_hooks::UseWebSocketReadyState::Connecting => {
@@ -507,9 +505,7 @@ fn order_stream_logs(id: i64, stream_name: AttrValue) -> Html {
         String::new()
     };
 
-    let ws = use_websocket(format!(
-        "wss://pandoc.danya02.ru/api/orders/{token}/{id}/stream/{stream_name}"
-    ));
+    let ws = use_websocket(url!("/api/orders/{token}/{id}/stream/{stream_name}"));
 
     if !*is_done {
         match *ws.ready_state {
